@@ -1,0 +1,185 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Amiri:wght@400;700&display=swap');
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Saalim Voyages — Noble & sober design system
+ * Palette: deep emerald (Madinah dome), warm gold, ivory, midnight
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-glow: var(--primary-glow);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-ivory: var(--ivory);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-arabic: var(--font-arabic);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Brand */
+  --background: oklch(0.985 0.008 90);          /* warm ivory */
+  --foreground: oklch(0.18 0.03 160);           /* deep emerald-ink */
+
+  --primary: oklch(0.42 0.09 160);              /* deep emerald */
+  --primary-foreground: oklch(0.985 0.008 90);
+  --primary-glow: oklch(0.55 0.12 158);
+
+  --gold: oklch(0.78 0.13 82);                  /* warm gold */
+  --gold-foreground: oklch(0.18 0.03 160);
+
+  --ivory: oklch(0.97 0.012 88);
+
+  --secondary: oklch(0.94 0.012 88);
+  --secondary-foreground: oklch(0.22 0.04 160);
+
+  --muted: oklch(0.95 0.008 90);
+  --muted-foreground: oklch(0.45 0.02 160);
+
+  --accent: oklch(0.92 0.04 82);                /* soft gold tint */
+  --accent-foreground: oklch(0.22 0.05 160);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.03 160);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.03 160);
+
+  --destructive: oklch(0.55 0.20 25);
+  --destructive-foreground: oklch(0.985 0.008 90);
+
+  --border: oklch(0.90 0.015 90);
+  --input: oklch(0.90 0.015 90);
+  --ring: oklch(0.42 0.09 160);
+
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-arabic: "Amiri", "Scheherazade New", serif;
+
+  /* Gradients & shadows */
+  --gradient-primary: linear-gradient(135deg, oklch(0.32 0.08 160), oklch(0.50 0.11 158));
+  --gradient-gold: linear-gradient(135deg, oklch(0.82 0.13 82), oklch(0.70 0.14 75));
+  --gradient-hero: linear-gradient(180deg, oklch(0.18 0.03 160 / 0.55), oklch(0.18 0.03 160 / 0.85));
+  --shadow-elegant: 0 20px 50px -20px oklch(0.32 0.08 160 / 0.35);
+  --shadow-gold: 0 12px 30px -10px oklch(0.78 0.13 82 / 0.45);
+  --shadow-soft: 0 8px 24px -10px oklch(0.18 0.03 160 / 0.15);
+  --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+  --background: oklch(0.16 0.025 160);
+  --foreground: oklch(0.97 0.012 88);
+  --primary: oklch(0.62 0.13 158);
+  --primary-foreground: oklch(0.12 0.025 160);
+  --primary-glow: oklch(0.72 0.15 158);
+  --gold: oklch(0.82 0.14 82);
+  --gold-foreground: oklch(0.16 0.025 160);
+  --ivory: oklch(0.22 0.03 160);
+  --secondary: oklch(0.24 0.03 160);
+  --secondary-foreground: oklch(0.97 0.012 88);
+  --muted: oklch(0.22 0.025 160);
+  --muted-foreground: oklch(0.70 0.02 90);
+  --accent: oklch(0.30 0.05 160);
+  --accent-foreground: oklch(0.97 0.012 88);
+  --card: oklch(0.20 0.025 160);
+  --card-foreground: oklch(0.97 0.012 88);
+  --popover: oklch(0.20 0.025 160);
+  --popover-foreground: oklch(0.97 0.012 88);
+  --border: oklch(0.30 0.025 160);
+  --input: oklch(0.30 0.025 160);
+  --ring: oklch(0.62 0.13 158);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
+  .arabic { font-family: var(--font-arabic); direction: rtl; }
+}
+
+@layer utilities {
+  .bg-gradient-primary { background-image: var(--gradient-primary); }
+  .bg-gradient-gold { background-image: var(--gradient-gold); }
+  .bg-gradient-hero { background-image: var(--gradient-hero); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-gold { box-shadow: var(--shadow-gold); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .text-balance { text-wrap: balance; }
+
+  /* Decorative arabesque divider */
+  .divider-ornament::before,
+  .divider-ornament::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--color-gold), transparent);
+  }
+  .divider-ornament { display: flex; align-items: center; gap: 1rem; }
+}
+
+/* Marquee animations for rotating CTAs */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee { animation: marquee 30s linear infinite; }
+
+@keyframes marquee-vertical {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+.animate-marquee-vertical { animation: marquee-vertical 18s linear infinite; }
+
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-float-up { animation: float-up 0.8s var(--transition-smooth) both; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, oklch(0.78 0.13 82 / 0.3), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+
+
