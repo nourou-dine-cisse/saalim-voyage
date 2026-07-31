@@ -56,16 +56,16 @@ def upload_passport(folder_id: str, file: UploadFile, content: bytes) -> str | N
 
 # --- Videos ---------------------------------------------------------------
 
-VIDEOS_FOLDER_NAME = "Videos site"
+IMAGES_FOLDER_NAME = "Images site"
 
 
-def _get_or_create_videos_folder() -> str:
-    """Sous-dossier dedie aux videos, cree au premier upload."""
+def _get_or_create_images_folder() -> str:
+    """Sous-dossier dedie aux images du site, cree au premier upload."""
     settings = get_settings()
     drive = get_drive_client()
     root = settings.drive_root_folder_id
     query = (
-        f"name = '{VIDEOS_FOLDER_NAME}' and '{root}' in parents "
+        f"name = '{IMAGES_FOLDER_NAME}' and '{root}' in parents "
         "and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     )
     found = drive.files().list(q=query, fields="files(id)", pageSize=1).execute().get("files", [])
@@ -74,7 +74,7 @@ def _get_or_create_videos_folder() -> str:
 
     created = drive.files().create(
         body={
-            "name": VIDEOS_FOLDER_NAME,
+            "name": IMAGES_FOLDER_NAME,
             "mimeType": "application/vnd.google-apps.folder",
             "parents": [root],
         },
@@ -83,33 +83,32 @@ def _get_or_create_videos_folder() -> str:
     return created["id"]
 
 
-def upload_video(file: UploadFile, content: bytes) -> tuple[str, str]:
+def upload_image(file: UploadFile, content: bytes) -> tuple[str, str]:
     """
-    Depose une video dans le sous-dossier Videos et la rend lisible par toute
-    personne disposant du lien (necessaire pour que le site public l'affiche).
-    Retourne (file_id, embed_url).
+    Depose une image dans le sous-dossier Images et la rend lisible par toute
+    personne disposant du lien (necessaire pour l'affichage public).
+    Retourne (file_id, url_affichable).
     """
     drive = get_drive_client()
-    folder_id = _get_or_create_videos_folder()
+    folder_id = _get_or_create_images_folder()
 
     media = MediaIoBaseUpload(
         io.BytesIO(content),
-        mimetype=file.content_type or "video/mp4",
-        resumable=True,
+        mimetype=file.content_type or "image/jpeg",
+        resumable=False,
     )
     created = drive.files().create(
-        body={"name": file.filename or "video.mp4", "parents": [folder_id]},
+        body={"name": file.filename or "image.jpg", "parents": [folder_id]},
         media_body=media,
         fields="id",
     ).execute()
     file_id = created["id"]
 
-    drive.permissions().create(
-        fileId=file_id,
-        body={"role": "reader", "type": "anyone"},
-    ).execute()
+    drive.permissions().create(fileId=file_id, body={"role": "reader", "type": "anyone"}).execute()
 
-    return file_id, f"https://drive.google.com/file/d/{file_id}/preview"
+    # Le lien "thumbnail" de Drive se comporte comme une vraie image (contrairement
+    # a l'URL de partage, qui renvoie une page HTML) et accepte un redimensionnement.
+    return file_id, f"https://drive.google.com/thumbnail?id={file_id}&sz=w1200"
 
 
 def delete_file(file_id: str) -> None:

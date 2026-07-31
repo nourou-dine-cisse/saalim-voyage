@@ -6,8 +6,9 @@ from pydantic import ValidationError
 from ..auth import require_admin
 from ..drive_service import create_pilgrim_folder, upload_fiche, upload_passport
 from ..email_service import notify_admin_new_registration
-from ..schemas import RegistrationCreate, RegistrationIndexRow, RegistrationResult, ServiceType
-from ..sheets_service import append_registration_row, list_registrations
+from .. import store
+from ..schemas import RegistrationCreate, RegistrationResult, RegistrationRow, ServiceType
+from ..sheets_service import append_registration_row
 
 router = APIRouter(prefix="/registrations", tags=["registrations"])
 
@@ -70,8 +71,14 @@ async def submit_registration(
     if passport is not None and passport_bytes:
         upload_passport(folder_id, passport, passport_bytes)
 
-    # 3. Index pour l'admin (lecture rapide sans repasser par l'API Drive)
-    append_registration_row(folder_id, reg, folder_link)
+    # 3a. Copie texte en base : l'admin reste consultable meme si Google est en panne
+    store.create_registration(reg, folder_link)
+
+    # 3b. Index Google Sheet (conserve : pratique pour consulter/filtrer dans Drive)
+    try:
+        append_registration_row(folder_id, reg, folder_link)
+    except Exception as exc:  # noqa: BLE001 - l'inscription est deja sauvegardee en base
+        print(f"[sheets] index non mis a jour : {exc}")
 
     # 4. Notification admin — un échec ici ne doit pas faire échouer l'inscription
     try:
@@ -87,7 +94,10 @@ async def submit_registration(
     )
 
 
-@router.get("", response_model=list[RegistrationIndexRow], dependencies=[Depends(require_admin)])
+@router.get("", response_model=list[RegistrationRow], dependencies=[Depends(require_admin)])
 def get_registrations():
-    """Réservé à l'admin — alimente l'onglet 'Inscriptions' du dashboard."""
-    return list_registrations()
+    """
+    Reserve a l'admin. Lecture depuis SQLite (rapide, et insensible a une panne
+    de l'API Google) ; le lien vers le dossier Drive du pelerin est conserve.
+    """
+    return store.list_registrations_db()

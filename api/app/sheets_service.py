@@ -9,7 +9,7 @@ from typing import Iterable
 
 from .config import get_settings
 from .google_clients import get_sheets_client
-from .schemas import Departure, RegistrationCreate, RegistrationIndexRow, Video
+from .schemas import Departure, RegistrationCreate, RegistrationIndexRow
 
 REGISTRATIONS_HEADER = [
     "registration_id",
@@ -25,8 +25,6 @@ REGISTRATIONS_HEADER = [
 DEPARTURES_TAB = "Departs"
 DEPARTURES_HEADER = ["id", "created_at", "date", "package_label", "seats"]
 
-VIDEOS_TAB = "Videos"
-VIDEOS_HEADER = ["id", "created_at", "title", "drive_file_id", "embed_url"]
 
 
 def _now() -> str:
@@ -196,29 +194,3 @@ def list_departures() -> list[Departure]:
 
 def delete_departure(departure_id: str) -> bool:
     return _delete_by_id(DEPARTURES_TAB, DEPARTURES_HEADER, departure_id)
-
-
-# --- Videos ---------------------------------------------------------------
-
-
-def add_video(title: str, drive_file_id: str, embed_url: str) -> Video:
-    new = Video(id=_new_id(), created_at=_now(), title=title, drive_file_id=drive_file_id, embed_url=embed_url)
-    _append(VIDEOS_TAB, VIDEOS_HEADER, [new.id, new.created_at, new.title, new.drive_file_id, new.embed_url])
-    return new
-
-
-def list_videos() -> list[Video]:
-    out = [
-        Video(id=r[0], created_at=r[1], title=r[2], drive_file_id=r[3], embed_url=r[4])
-        for r in _read(VIDEOS_TAB, VIDEOS_HEADER)
-        if r[0]
-    ]
-    return list(reversed(out))
-
-
-def get_video(video_id: str) -> Video | None:
-    return next((v for v in list_videos() if v.id == video_id), None)
-
-
-def delete_video_row(video_id: str) -> bool:
-    return _delete_by_id(VIDEOS_TAB, VIDEOS_HEADER, video_id)

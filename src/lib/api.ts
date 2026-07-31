@@ -14,14 +14,21 @@ export interface RegistrationResult {
 }
 
 export interface RegistrationIndexRow {
-  registration_id: string;
+  id: string;
   created_at: string;
   full_name: string;
   email: string;
   phone: string;
+  whatsapp: string | null;
+  country: string | null;
+  city: string | null;
   service_type: string;
   departure_date: string | null;
-  drive_folder_link: string;
+  notes: string | null;
+  passport_valid_6_months: boolean;
+  language: string;
+  drive_folder_link: string | null;
+  status: string;
 }
 
 /**
@@ -93,9 +100,37 @@ export interface Departure {
 export interface Video {
   id: string;
   created_at: string;
+  sort_order: number;
   title: string;
-  drive_file_id: string;
+  youtube_id: string;
+  youtube_url: string;
   embed_url: string;
+}
+
+export interface Package {
+  id: string;
+  created_at: string;
+  sort_order: number;
+  name: string;
+  duration: string | null;
+  price: string | null;
+  description: string | null;
+  features: string[];
+  image_url: string | null;
+  image_file_id: string | null;
+  active: boolean;
+}
+
+/** Champs d'un forfait tels que saisis dans l'admin. */
+export interface PackageForm {
+  name: string;
+  duration: string;
+  price: string;
+  description: string;
+  /** Une inclusion par ligne. */
+  features: string;
+  sort_order: number;
+  active: boolean;
 }
 
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
@@ -133,17 +168,11 @@ export async function deleteDeparture(token: string, id: string): Promise<void> 
 /** Videos affichees dans la section Videos (lecture publique). */
 export const fetchVideos = () => getJson<Video[]>("/videos");
 
-export async function uploadVideo(token: string, title: string, file: File): Promise<Video> {
-  const form = new FormData();
-  form.append("title", title);
-  form.append("file", file);
-  const res = await request("/videos", {
-    method: "POST",
-    headers: authHeaders(token),
-    body: form,
-  });
-  if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+export async function addVideo(
+  token: string,
+  payload: { title: string; youtube_url: string; sort_order?: number },
+): Promise<Video> {
+  return postJson<Video>("/videos", { sort_order: 0, ...payload }, token);
 }
 
 export async function deleteVideo(token: string, id: string): Promise<void> {
@@ -299,3 +328,55 @@ export const sendContactMessage = (payload: {
 export const fetchContactMessages = (token: string) => getJson<ContactMessage[]>("/contact", token);
 
 export const fetchStats = (token: string) => getJson<AdminStats>("/stats", token);
+
+// --- Forfaits (section Packages, editable depuis l'admin) ------------------
+
+/** Forfaits actifs, affiches sur le site. */
+export const fetchPackages = () => getJson<Package[]>("/packages");
+
+/** Tous les forfaits, y compris ceux masques (admin). */
+export const fetchAllPackages = (token: string) => getJson<Package[]>("/packages/all", token);
+
+function packageFormData(form: PackageForm, image: File | null): FormData {
+  const fd = new FormData();
+  fd.append("name", form.name);
+  fd.append("duration", form.duration);
+  fd.append("price", form.price);
+  fd.append("description", form.description);
+  fd.append("features", form.features);
+  fd.append("sort_order", String(form.sort_order));
+  fd.append("active", String(form.active));
+  if (image) fd.append("image", image);
+  return fd;
+}
+
+export async function createPackage(token: string, form: PackageForm, image: File | null): Promise<Package> {
+  const res = await request("/packages", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: packageFormData(form, image),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+/** L'image n'est remplacee que si un nouveau fichier est fourni. */
+export async function updatePackage(
+  token: string,
+  id: string,
+  form: PackageForm,
+  image: File | null,
+): Promise<Package> {
+  const res = await request(`/packages/${id}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: packageFormData(form, image),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function deletePackage(token: string, id: string): Promise<void> {
+  const res = await request(`/packages/${id}`, { method: "DELETE", headers: authHeaders(token) });
+  if (!res.ok) throw new Error(await readError(res));
+}

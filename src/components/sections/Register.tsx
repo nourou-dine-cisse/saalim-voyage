@@ -122,7 +122,7 @@ export function Register() {
       setPassportFile(null);
     } catch (err) {
       console.error(err);
-      setError(t.register.error);
+      setError(err instanceof Error ? err.message : t.register.error);
     } finally {
       setSubmitting(false);
     }

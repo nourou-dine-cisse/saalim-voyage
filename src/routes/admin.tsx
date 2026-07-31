@@ -12,7 +12,11 @@ import {
   fetchDepartures,
   fetchRegistrations,
   fetchVideos,
-  uploadVideo,
+  addVideo,
+  createPackage,
+  deletePackage,
+  fetchAllPackages,
+  updatePackage,
   approveReview,
   confirmPayment,
   fetchAllReviews,
@@ -26,6 +30,8 @@ import {
   type Payment,
   type RegistrationIndexRow,
   type Review,
+  type Package,
+  type PackageForm,
   type Video,
 } from "@/lib/api";
 import { LangProvider, useLang } from "@/i18n/LangContext";
@@ -144,7 +150,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-type Tab = "metrics" | "registrations" | "departures" | "videos" | "payments" | "reviews" | "contacts";
+type Tab = "metrics" | "registrations" | "departures" | "packages" | "videos" | "payments" | "reviews" | "contacts";
 
 function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   const { t } = useLang();
@@ -154,6 +160,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     { key: "metrics", label: t.admin.tabMetrics },
     { key: "registrations", label: t.admin.tabRegistrations },
     { key: "departures", label: "Départs" },
+    { key: "packages", label: "Forfaits" },
     { key: "videos", label: "Vidéos" },
     { key: "payments", label: t.admin.tabPayments },
     { key: "reviews", label: t.admin.tabReviews },
@@ -190,6 +197,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         {tab === "metrics" && <Metrics />}
         {tab === "registrations" && <Registrations />}
         {tab === "departures" && <DeparturesAdmin />}
+        {tab === "packages" && <PackagesAdmin />}
         {tab === "videos" && <VideosAdmin />}
         {tab === "payments" && <Payments />}
         {tab === "reviews" && <ReviewsModeration />}
@@ -325,7 +333,7 @@ function Registrations() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.registration_id} className="border-t border-border">
+              <tr key={r.id} className="border-t border-border">
                 <Td>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "\u2014"}</Td>
                 <Td>{r.full_name}</Td>
                 <Td>
@@ -747,9 +755,9 @@ function VideosAdmin() {
   const [rows, setRows] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
 
   const load = async () => {
     try {
@@ -768,24 +776,22 @@ function VideosAdmin() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
-    setUploading(true);
+    setSaving(true);
     setError(null);
     try {
-      await uploadVideo(await adminToken(), title.trim() || file.name, file);
+      await addVideo(await adminToken(), { title: title.trim(), youtube_url: url.trim() });
       setTitle("");
-      setFile(null);
-      (e.target as HTMLFormElement).reset();
+      setUrl("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm("Supprimer cette vidéo ? Le fichier sera effacé définitivement.")) return;
+    if (!window.confirm("Retirer cette vidéo du site ?")) return;
     try {
       await deleteVideo(await adminToken(), id);
       setRows((rs) => rs.filter((r) => r.id !== id));
@@ -797,11 +803,12 @@ function VideosAdmin() {
   return (
     <div className="space-y-6">
       <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
-        <h3 className="font-display text-lg font-semibold text-foreground">Ajouter une vidéo</h3>
+        <h3 className="font-display text-lg font-semibold text-foreground">Ajouter une vidéo YouTube</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block">
-            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Titre</span>
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Titre *</span>
             <input
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Omra décembre 2026"
@@ -809,28 +816,26 @@ function VideosAdmin() {
             />
           </label>
           <label className="block">
-            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Fichier vidéo *</span>
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Lien YouTube *</span>
             <input
-              type="file"
               required
-              accept="video/mp4,video/quicktime,video/webm"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
             />
           </label>
         </div>
-        <p className="text-xs text-muted-foreground">MP4, MOV ou WEBM — 200 Mo maximum.</p>
-        {error && (
-          <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-3">
-            {error}
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">
+          Collez l'adresse de la vidéo depuis YouTube (formats acceptés : watch, youtu.be, shorts).
+        </p>
+        {error && <ErrorBox msg={error} />}
         <button
           type="submit"
-          disabled={uploading || !file}
+          disabled={saving}
           className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
         >
-          {uploading ? "Envoi en cours…" : "Publier"}
+          {saving ? "..." : "Publier"}
         </button>
       </form>
 
@@ -853,6 +858,250 @@ function VideosAdmin() {
                 >
                   Supprimer
                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_PACKAGE: PackageForm = {
+  name: "",
+  duration: "",
+  price: "",
+  description: "",
+  features: "",
+  sort_order: 0,
+  active: true,
+};
+
+function PackagesAdmin() {
+  const { t } = useLang();
+  const [rows, setRows] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<PackageForm>(EMPTY_PACKAGE);
+  const [image, setImage] = useState<File | null>(null);
+
+  const load = async () => {
+    try {
+      setRows(await fetchAllPackages(await adminToken()));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const reset = () => {
+    setEditingId(null);
+    setForm(EMPTY_PACKAGE);
+    setImage(null);
+  };
+
+  const startEdit = (p: Package) => {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      duration: p.duration ?? "",
+      price: p.price ?? "",
+      description: p.description ?? "",
+      features: p.features.join("\n"),
+      sort_order: p.sort_order,
+      active: p.active,
+    });
+    setImage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await adminToken();
+      if (editingId) await updatePackage(token, editingId, form, image);
+      else await createPackage(token, form, image);
+      reset();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Supprimer ce forfait ? Son image sera aussi effacée.")) return;
+    try {
+      await deletePackage(await adminToken(), id);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+      if (editingId === id) reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const field = "w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm";
+  const label = "block text-xs font-semibold text-foreground/80 mb-1.5";
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-foreground">
+            {editingId ? "Modifier le forfait" : "Ajouter un forfait"}
+          </h3>
+          {editingId && (
+            <button type="button" onClick={reset} className="text-xs text-primary underline">
+              Annuler la modification
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className={label}>Nom *</span>
+            <input
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Omra Confort"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Durée</span>
+            <input
+              value={form.duration}
+              onChange={(e) => setForm({ ...form, duration: e.target.value })}
+              placeholder="15 jours"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Prix</span>
+            <input
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              placeholder="À partir de 1 450 000 FCFA"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Ordre d'affichage</span>
+            <input
+              type="number"
+              value={form.sort_order}
+              onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) || 0 })}
+              className={field}
+            />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className={label}>Description</span>
+          <textarea
+            rows={2}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className={field}
+          />
+        </label>
+
+        <label className="block">
+          <span className={label}>Inclusions — une par ligne</span>
+          <textarea
+            rows={4}
+            value={form.features}
+            onChange={(e) => setForm({ ...form, features: e.target.value })}
+            placeholder={"Vol aller-retour\nVisa inclus\nHôtel 4 étoiles"}
+            className={field}
+          />
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+          <label className="block">
+            <span className={label}>Image {editingId && "(laisser vide pour conserver l'actuelle)"}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+              className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+              className="w-4 h-4 accent-primary"
+            />
+            <span className="text-foreground">Visible sur le site</span>
+          </label>
+        </div>
+
+        {error && <ErrorBox msg={error} />}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
+        >
+          {saving ? "..." : editingId ? "Enregistrer" : "Ajouter"}
+        </button>
+      </form>
+
+      {loading ? (
+        <p className="text-muted-foreground">{t.common.loading}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground italic">{t.admin.noData}</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {rows.map((p) => (
+            <div key={p.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
+              {p.image_url && (
+                <div className="aspect-[4/3] bg-muted">
+                  <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+              )}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-display font-semibold text-foreground">{p.name}</span>
+                  <Badge ok={p.active}>{p.active ? "visible" : "masqué"}</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {p.duration} {p.price && `· ${p.price}`}
+                </div>
+                <ul className="text-xs text-muted-foreground list-disc list-inside">
+                  {p.features.slice(0, 3).map((f, i) => (
+                    <li key={i}>{f}</li>
+                  ))}
+                  {p.features.length > 3 && <li>+ {p.features.length - 3} autres</li>}
+                </ul>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => remove(p.id)}
+                    className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
             </div>
           ))}

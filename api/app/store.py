@@ -1,10 +1,15 @@
 """Acces aux donnees SQLite : paiements, avis, messages de contact."""
+import json
 import uuid
 from datetime import datetime, timezone
 
 from .db import connect
 from .schemas import (
     ContactMessage,
+    Package,
+    PackageBase,
+    RegistrationRow,
+    VideoLink,
     ContactMessageCreate,
     Payment,
     PaymentCreate,
@@ -135,3 +140,139 @@ def list_contact_messages() -> list[ContactMessage]:
     with connect() as conn:
         rows = conn.execute("SELECT * FROM contact_messages ORDER BY created_at DESC").fetchall()
     return [ContactMessage(**dict(r)) for r in rows]
+
+
+# --- Inscriptions (copie texte ; les fichiers restent sur Drive) -----------
+
+
+def create_registration(reg, drive_folder_link: str | None) -> str:
+    """Enregistre les donnees textuelles du formulaire. Retourne l'id."""
+    row_id = _new_id()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO registrations
+               (id, created_at, full_name, email, phone, whatsapp, country, city,
+                service_type, departure_date, notes, passport_valid_6_months,
+                language, drive_folder_link, status)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                row_id, _now(), reg.full_name, str(reg.email), reg.phone,
+                reg.whatsapp, reg.country, reg.city, reg.service_type.value,
+                reg.departure_date.isoformat() if reg.departure_date else None,
+                reg.notes, 1 if reg.passport_valid_6_months else 0,
+                reg.language, drive_folder_link, "new",
+            ),
+        )
+    return row_id
+
+
+def list_registrations_db() -> list[RegistrationRow]:
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM registrations ORDER BY created_at DESC").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["passport_valid_6_months"] = bool(d["passport_valid_6_months"])
+        out.append(RegistrationRow(**d))
+    return out
+
+
+def count_registrations() -> int:
+    with connect() as conn:
+        return conn.execute("SELECT COUNT(*) c FROM registrations").fetchone()["c"]
+
+
+# --- Forfaits -------------------------------------------------------------
+
+
+def _to_package(r) -> Package:
+    d = dict(r)
+    d["active"] = bool(d["active"])
+    d["features"] = json.loads(d["features"] or "[]")
+    return Package(**d)
+
+
+def create_package(data: PackageBase, image_url: str | None, image_file_id: str | None) -> Package:
+    row_id = _new_id()
+    created = _now()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO packages
+               (id, created_at, sort_order, name, duration, price, description,
+                features, image_url, image_file_id, active)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                row_id, created, data.sort_order, data.name, data.duration, data.price,
+                data.description, json.dumps(data.features, ensure_ascii=False),
+                image_url, image_file_id, 1 if data.active else 0,
+            ),
+        )
+    return Package(id=row_id, created_at=created, image_url=image_url,
+                   image_file_id=image_file_id, **data.model_dump())
+
+
+def list_packages(active_only: bool) -> list[Package]:
+    sql = "SELECT * FROM packages"
+    if active_only:
+        sql += " WHERE active = 1"
+    sql += " ORDER BY sort_order ASC, created_at ASC"
+    with connect() as conn:
+        return [_to_package(r) for r in conn.execute(sql).fetchall()]
+
+
+def get_package(package_id: str) -> Package | None:
+    with connect() as conn:
+        r = conn.execute("SELECT * FROM packages WHERE id=?", (package_id,)).fetchone()
+    return _to_package(r) if r else None
+
+
+def update_package(package_id: str, data: PackageBase,
+                   image_url: str | None, image_file_id: str | None) -> bool:
+    """Met a jour le forfait. L'image n'est remplacee que si une nouvelle est fournie."""
+    sets = [
+        "sort_order=?", "name=?", "duration=?", "price=?",
+        "description=?", "features=?", "active=?",
+    ]
+    params: list = [
+        data.sort_order, data.name, data.duration, data.price,
+        data.description, json.dumps(data.features, ensure_ascii=False),
+        1 if data.active else 0,
+    ]
+    if image_url:
+        sets += ["image_url=?", "image_file_id=?"]
+        params += [image_url, image_file_id]
+    params.append(package_id)
+    with connect() as conn:
+        cur = conn.execute(f"UPDATE packages SET {', '.join(sets)} WHERE id=?", params)
+        return cur.rowcount > 0
+
+
+def delete_package(package_id: str) -> bool:
+    with connect() as conn:
+        return conn.execute("DELETE FROM packages WHERE id=?", (package_id,)).rowcount > 0
+
+
+# --- Videos (liens YouTube) -----------------------------------------------
+
+
+def create_video(title: str, youtube_id: str, youtube_url: str, sort_order: int) -> VideoLink:
+    row_id = _new_id()
+    created = _now()
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO videos (id, created_at, sort_order, title, youtube_id, youtube_url) VALUES (?,?,?,?,?,?)",
+            (row_id, created, sort_order, title, youtube_id, youtube_url),
+        )
+    return VideoLink(id=row_id, created_at=created, sort_order=sort_order,
+                     title=title, youtube_id=youtube_id, youtube_url=youtube_url)
+
+
+def list_video_links() -> list[VideoLink]:
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM videos ORDER BY sort_order ASC, created_at ASC").fetchall()
+    return [VideoLink(**dict(r)) for r in rows]
+
+
+def delete_video_link(video_id: str) -> bool:
+    with connect() as conn:
+        return conn.execute("DELETE FROM videos WHERE id=?", (video_id,)).rowcount > 0

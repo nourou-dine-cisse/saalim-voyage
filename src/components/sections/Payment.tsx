@@ -60,7 +60,7 @@ export function Payment() {
       (e.target as HTMLFormElement).reset();
     } catch (err) {
       console.error(err);
-      setError("Erreur. Réessayez.");
+      setError(err instanceof Error ? err.message : "Erreur. Réessayez.");
     } finally {
       setSubmitting(false);
     }

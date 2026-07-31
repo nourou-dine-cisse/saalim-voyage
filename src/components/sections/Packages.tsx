@@ -1,31 +1,55 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { useLang } from "@/i18n/LangContext";
+import { fetchPackages, type Package } from "@/lib/api";
 import medinaImg from "@/assets/medina-mosque.jpg";
 import pilgrimsImg from "@/assets/pilgrims.jpg";
 import heroImg from "@/assets/hero-kaaba.jpg";
 import quba from "@/assets/place-quba.jpg";
 
+// Images de secours pour les forfaits saisis sans visuel.
 const images = [heroImg, medinaImg, pilgrimsImg, quba];
 
 export function Packages() {
   const { t } = useLang();
   const [open, setOpen] = useState<number | null>(null);
+  const [items, setItems] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Les forfaits sont gérés depuis la page admin.
+  useEffect(() => {
+    (async () => {
+      try {
+        setItems(await fetchPackages());
+      } catch (err) {
+        console.error("chargement des forfaits impossible", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const imageFor = (p: Package, i: number) => p.image_url || images[i % images.length];
 
   return (
     <section id="packages" className="py-24 lg:py-32 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <SectionHeading title={t.packages.title} subtitle={t.packages.subtitle} />
 
+        {loading ? (
+          <p className="mt-16 text-center text-muted-foreground">{t.common.loading}</p>
+        ) : items.length === 0 ? (
+          <p className="mt-16 text-center text-muted-foreground italic">{t.packages.subtitle}</p>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-16">
-          {t.packages.items.map((p, i) => (
+          {items.map((p, i) => (
             <article
               key={i}
               className="group relative bg-card border border-border rounded-2xl overflow-hidden shadow-soft hover:shadow-elegant transition-all duration-500 hover:-translate-y-1"
             >
               <div className="aspect-[4/3] overflow-hidden">
                 <img
-                  src={images[i % images.length]}
+                  src={imageFor(p, i)}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   loading="lazy"
@@ -36,7 +60,7 @@ export function Packages() {
                   <h3 className="font-display text-xl font-semibold text-foreground">{p.name}</h3>
                   <span className="text-xs text-muted-foreground">{p.duration}</span>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{p.desc}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{p.description}</p>
                 <div className="flex items-end justify-between gap-2">
                   <span className="text-primary font-semibold text-sm">{p.price}</span>
                 </div>
@@ -51,10 +75,11 @@ export function Packages() {
             </article>
           ))}
         </div>
+        )}
       </div>
 
       {/* Modal viewer */}
-      {open !== null && (
+      {open !== null && items[open] && (
         <div
           className="fixed inset-0 z-[100] bg-foreground/80 backdrop-blur-sm flex items-center justify-center p-4 animate-float-up"
           onClick={() => setOpen(null)}
@@ -65,8 +90,8 @@ export function Packages() {
           >
             <div className="relative aspect-[16/9]">
               <img
-                src={images[open % images.length]}
-                alt={t.packages.items[open].name}
+                src={imageFor(items[open], open)}
+                alt={items[open].name}
                 className="w-full h-full object-cover"
               />
               <button
@@ -81,20 +106,20 @@ export function Packages() {
               <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
                 <div>
                   <h3 className="font-display text-3xl font-semibold text-foreground">
-                    {t.packages.items[open].name}
+                    {items[open].name}
                   </h3>
-                  <span className="text-sm text-muted-foreground">{t.packages.items[open].duration}</span>
+                  <span className="text-sm text-muted-foreground">{items[open].duration}</span>
                 </div>
-                <span className="text-2xl font-semibold text-primary">{t.packages.items[open].price}</span>
+                <span className="text-2xl font-semibold text-primary">{items[open].price}</span>
               </div>
-              <p className="text-muted-foreground leading-relaxed mb-6">{t.packages.items[open].desc}</p>
+              <p className="text-muted-foreground leading-relaxed mb-6">{items[open].description}</p>
 
               <div className="bg-muted rounded-xl p-5 mb-6">
                 <div className="text-xs uppercase tracking-wider text-primary font-semibold mb-3">
                   {t.packages.includes}
                 </div>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {t.packages.items[open].features.map((f, j) => (
+                  {items[open].features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2 text-sm text-foreground">
                       <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                       <span>{f}</span>

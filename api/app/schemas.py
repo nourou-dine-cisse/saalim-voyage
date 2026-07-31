@@ -124,3 +124,61 @@ class ContactMessageCreate(BaseModel):
 class ContactMessage(ContactMessageCreate):
     id: str
     created_at: str
+
+
+# --- Contenu gere depuis l'admin : forfaits, videos ------------------------
+
+
+class PackageBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    duration: Optional[str] = Field(default=None, max_length=80)
+    price: Optional[str] = Field(default=None, max_length=80)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    features: list[str] = Field(default_factory=list)
+    sort_order: int = 0
+    active: bool = True
+
+
+class Package(PackageBase):
+    id: str
+    created_at: str
+    image_url: Optional[str] = None
+    image_file_id: Optional[str] = None
+
+
+class VideoLinkCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    youtube_url: str = Field(min_length=5, max_length=500)
+    sort_order: int = 0
+
+
+class VideoLink(BaseModel):
+    id: str
+    created_at: str
+    sort_order: int
+    title: str
+    youtube_id: str
+    youtube_url: str
+
+    @property
+    def embed_url(self) -> str:
+        return f"https://www.youtube.com/embed/{self.youtube_id}"
+
+
+class RegistrationRow(BaseModel):
+    """Inscription telle que stockee en base (copie texte du formulaire)."""
+    id: str
+    created_at: str
+    full_name: str
+    email: str
+    phone: str
+    whatsapp: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    service_type: str
+    departure_date: Optional[str] = None
+    notes: Optional[str] = None
+    passport_valid_6_months: bool = False
+    language: str = "fr"
+    drive_folder_link: Optional[str] = None
+    status: str = "new"

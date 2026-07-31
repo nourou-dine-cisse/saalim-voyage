@@ -78,7 +78,7 @@ export function Reviews() {
       setRating(5);
     } catch (err) {
       console.error(err);
-      setError(t.reviews.reviewError);
+      setError(err instanceof Error ? err.message : t.reviews.reviewError);
     } finally {
       setSubmitting(false);
     }
