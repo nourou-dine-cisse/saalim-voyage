@@ -183,3 +183,21 @@ class RegistrationRow(BaseModel):
     language: str = "fr"
     drive_folder_link: Optional[str] = None
     status: str = "new"
+
+
+# --- Lieux saints (section Places, editable depuis l'admin) ----------------
+
+
+class PlaceBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    location: Optional[str] = Field(default=None, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    sort_order: int = 0
+    active: bool = True
+
+
+class Place(PlaceBase):
+    id: str
+    created_at: str
+    image_url: Optional[str] = None
+    image_file_id: Optional[str] = None

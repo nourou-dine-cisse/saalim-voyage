@@ -414,3 +414,73 @@ export async function deletePackage(token: string, id: string): Promise<void> {
   const res = await request(`/packages/${id}`, { method: "DELETE", headers: authHeaders(token) });
   if (!res.ok) throw new Error(await readError(res));
 }
+
+// --- Lieux saints (section Places, éditable depuis l'admin) ----------------
+
+export interface Place {
+  id: string;
+  created_at: string;
+  sort_order: number;
+  name: string;
+  location: string | null;
+  description: string | null;
+  image_url: string | null;
+  image_file_id: string | null;
+  active: boolean;
+}
+
+/** Champs d'un lieu tels que saisis dans l'admin. */
+export interface PlaceForm {
+  name: string;
+  location: string;
+  description: string;
+  sort_order: number;
+  active: boolean;
+}
+
+/** Lieux actifs, affichés sur le site. */
+export const fetchPlaces = () => getJson<Place[]>("/places");
+
+export const fetchAllPlaces = (token: string) => getJson<Place[]>("/places/all", token);
+
+function placeFormData(form: PlaceForm, image: File | null): FormData {
+  const fd = new FormData();
+  fd.append("name", form.name);
+  fd.append("location", form.location);
+  fd.append("description", form.description);
+  fd.append("sort_order", String(form.sort_order));
+  fd.append("active", String(form.active));
+  if (image) fd.append("image", image);
+  return fd;
+}
+
+export async function createPlace(token: string, form: PlaceForm, image: File | null): Promise<Place> {
+  const res = await request("/places", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: placeFormData(form, image),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+/** L'image n'est remplacée que si un nouveau fichier est fourni. */
+export async function updatePlace(
+  token: string,
+  id: string,
+  form: PlaceForm,
+  image: File | null,
+): Promise<Place> {
+  const res = await request(`/places/${id}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: placeFormData(form, image),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function deletePlace(token: string, id: string): Promise<void> {
+  const res = await request(`/places/${id}`, { method: "DELETE", headers: authHeaders(token) });
+  if (!res.ok) throw new Error(await readError(res));
+}

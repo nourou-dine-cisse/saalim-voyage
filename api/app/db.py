@@ -98,6 +98,18 @@ CREATE TABLE IF NOT EXISTS packages (
     active INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS places (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL,
+    location TEXT,
+    description TEXT,
+    image_url TEXT,
+    image_file_id TEXT,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS videos (
     id TEXT PRIMARY KEY,
     created_at TEXT NOT NULL,

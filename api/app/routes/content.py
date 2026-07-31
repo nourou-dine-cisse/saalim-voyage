@@ -9,7 +9,15 @@ from pydantic import BaseModel
 from .. import store
 from ..auth import require_admin
 from ..drive_service import delete_file, upload_image
-from ..schemas import Departure, DepartureBase, Package, PackageBase, VideoLinkCreate
+from ..schemas import (
+    Departure,
+    DepartureBase,
+    Package,
+    PackageBase,
+    Place,
+    PlaceBase,
+    VideoLinkCreate,
+)
 from ..youtube import extract_youtube_id
 
 
@@ -255,3 +263,86 @@ def remove_package(package_id: str):
             pass
     store.delete_package(package_id)
     return {"deleted": package_id}
+
+
+# --- Lieux saints ---------------------------------------------------------
+
+
+def _parse_place_form(
+    name: str, location: str | None, description: str | None, sort_order: int, active: bool,
+) -> PlaceBase:
+    return PlaceBase(
+        name=name.strip(), location=(location or None),
+        description=(description or None), sort_order=sort_order, active=active,
+    )
+
+
+@router.get("/places", response_model=list[Place])
+def get_places():
+    """Public : alimente la section Lieux saints du site."""
+    return store.list_places(active_only=True)
+
+
+@router.get("/places/all", response_model=list[Place], dependencies=[Depends(require_admin)])
+def get_all_places():
+    return store.list_places(active_only=False)
+
+
+@router.post("/places", response_model=Place, dependencies=[Depends(require_admin)])
+async def add_place(
+    name: str = Form(...),
+    location: str | None = Form(None),
+    description: str | None = Form(None),
+    sort_order: int = Form(0),
+    active: bool = Form(True),
+    image: UploadFile | None = File(None),
+):
+    data = _parse_place_form(name, location, description, sort_order, active)
+    content = await _read_image(image)
+    image_url = image_file_id = None
+    if content:
+        image_file_id, image_url = upload_image(image, content)
+    return store.create_place(data, image_url, image_file_id)
+
+
+@router.put("/places/{place_id}", response_model=Place, dependencies=[Depends(require_admin)])
+async def edit_place(
+    place_id: str,
+    name: str = Form(...),
+    location: str | None = Form(None),
+    description: str | None = Form(None),
+    sort_order: int = Form(0),
+    active: bool = Form(True),
+    image: UploadFile | None = File(None),
+):
+    existing = store.get_place(place_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Lieu introuvable")
+
+    data = _parse_place_form(name, location, description, sort_order, active)
+    content = await _read_image(image)
+    image_url = image_file_id = None
+    if content:
+        image_file_id, image_url = upload_image(image, content)
+        if existing.image_file_id:
+            try:
+                delete_file(existing.image_file_id)
+            except Exception:  # noqa: BLE001
+                pass
+
+    store.update_place(place_id, data, image_url, image_file_id)
+    return store.get_place(place_id)
+
+
+@router.delete("/places/{place_id}", dependencies=[Depends(require_admin)])
+def remove_place(place_id: str):
+    existing = store.get_place(place_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Lieu introuvable")
+    if existing.image_file_id:
+        try:
+            delete_file(existing.image_file_id)
+        except Exception:  # noqa: BLE001
+            pass
+    store.delete_place(place_id)
+    return {"deleted": place_id}

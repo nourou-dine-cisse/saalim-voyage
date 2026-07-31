@@ -15,6 +15,10 @@ import {
   fetchVideos,
   addVideo,
   createPackage,
+  createPlace,
+  deletePlace,
+  fetchAllPlaces,
+  updatePlace,
   deletePackage,
   fetchAllPackages,
   updatePackage,
@@ -34,6 +38,8 @@ import {
   type Review,
   type Package,
   type PackageForm,
+  type Place,
+  type PlaceForm,
   type Video,
 } from "@/lib/api";
 import { LangProvider, useLang } from "@/i18n/LangContext";
@@ -152,7 +158,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-type Tab = "metrics" | "registrations" | "departures" | "packages" | "videos" | "payments" | "reviews" | "contacts";
+type Tab = "metrics" | "registrations" | "departures" | "packages" | "places" | "videos" | "payments" | "reviews" | "contacts";
 
 function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   const { t } = useLang();
@@ -163,6 +169,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     { key: "registrations", label: t.admin.tabRegistrations },
     { key: "departures", label: "Départs" },
     { key: "packages", label: "Forfaits" },
+    { key: "places", label: "Lieux saints" },
     { key: "videos", label: "Vidéos" },
     { key: "payments", label: t.admin.tabPayments },
     { key: "reviews", label: t.admin.tabReviews },
@@ -200,6 +207,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         {tab === "registrations" && <Registrations />}
         {tab === "departures" && <DeparturesAdmin />}
         {tab === "packages" && <PackagesAdmin />}
+        {tab === "places" && <PlacesAdmin />}
         {tab === "videos" && <VideosAdmin />}
         {tab === "payments" && <Payments />}
         {tab === "reviews" && <ReviewsModeration />}
@@ -1158,6 +1166,222 @@ function PackagesAdmin() {
                   ))}
                   {p.features.length > 3 && <li>+ {p.features.length - 3} autres</li>}
                 </ul>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => remove(p.id)}
+                    className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_PLACE: PlaceForm = {
+  name: "",
+  location: "",
+  description: "",
+  sort_order: 0,
+  active: true,
+};
+
+function PlacesAdmin() {
+  const { t } = useLang();
+  const [rows, setRows] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<PlaceForm>(EMPTY_PLACE);
+  const [image, setImage] = useState<File | null>(null);
+
+  const load = async () => {
+    try {
+      setRows(await fetchAllPlaces(await adminToken()));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const reset = () => {
+    setEditingId(null);
+    setForm(EMPTY_PLACE);
+    setImage(null);
+  };
+
+  const startEdit = (p: Place) => {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      location: p.location ?? "",
+      description: p.description ?? "",
+      sort_order: p.sort_order,
+      active: p.active,
+    });
+    setImage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await adminToken();
+      if (editingId) await updatePlace(token, editingId, form, image);
+      else await createPlace(token, form, image);
+      reset();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Supprimer ce lieu ? Son image sera aussi effacée.")) return;
+    try {
+      await deletePlace(await adminToken(), id);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+      if (editingId === id) reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const field = "w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm";
+  const label = "block text-xs font-semibold text-foreground/80 mb-1.5";
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-foreground">
+            {editingId ? "Modifier le lieu" : "Ajouter un lieu saint"}
+          </h3>
+          {editingId && (
+            <button type="button" onClick={reset} className="text-xs text-primary underline">
+              Annuler la modification
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label className="block">
+            <span className={label}>Nom *</span>
+            <input
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Mosquée de Quba"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Ville</span>
+            <input
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              placeholder="Médine"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>Ordre d'affichage</span>
+            <input
+              type="number"
+              value={form.sort_order}
+              onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) || 0 })}
+              className={field}
+            />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className={label}>Description / histoire</span>
+          <textarea
+            rows={5}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Première mosquée construite en islam…"
+            className={field}
+          />
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+          <label className="block">
+            <span className={label}>Image {editingId && "(laisser vide pour conserver l'actuelle)"}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+              className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+              className="w-4 h-4 accent-primary"
+            />
+            <span className="text-foreground">Visible sur le site</span>
+          </label>
+        </div>
+
+        {error && <ErrorBox msg={error} />}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
+        >
+          {saving ? "..." : editingId ? "Enregistrer" : "Ajouter"}
+        </button>
+      </form>
+
+      {loading ? (
+        <p className="text-muted-foreground">{t.common.loading}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground italic">{t.admin.noData}</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {rows.map((p) => (
+            <div key={p.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
+              {p.image_url && (
+                <div className="aspect-[16/10] bg-muted">
+                  <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+              )}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-display font-semibold text-foreground">{p.name}</span>
+                  <Badge ok={p.active}>{p.active ? "visible" : "masqué"}</Badge>
+                </div>
+                {p.location && <div className="text-xs text-muted-foreground">{p.location}</div>}
+                {p.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-3">{p.description}</p>
+                )}
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => startEdit(p)}

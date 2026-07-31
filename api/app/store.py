@@ -10,6 +10,8 @@ from .schemas import (
     DepartureBase,
     Package,
     PackageBase,
+    Place,
+    PlaceBase,
     RegistrationRow,
     VideoLink,
     ContactMessageCreate,
@@ -334,3 +336,60 @@ def update_departure(departure_id: str, data: DepartureBase,
 def delete_departure_db(departure_id: str) -> bool:
     with connect() as conn:
         return conn.execute("DELETE FROM departures WHERE id=?", (departure_id,)).rowcount > 0
+
+
+# --- Lieux saints ---------------------------------------------------------
+
+
+def _to_place(r) -> Place:
+    d = dict(r)
+    d["active"] = bool(d["active"])
+    return Place(**d)
+
+
+def create_place(data: PlaceBase, image_url: str | None, image_file_id: str | None) -> Place:
+    row_id = _new_id()
+    created = _now()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO places
+               (id, created_at, sort_order, name, location, description, image_url, image_file_id, active)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (row_id, created, data.sort_order, data.name, data.location,
+             data.description, image_url, image_file_id, 1 if data.active else 0),
+        )
+    return Place(id=row_id, created_at=created, image_url=image_url,
+                 image_file_id=image_file_id, **data.model_dump())
+
+
+def list_places(active_only: bool) -> list[Place]:
+    sql = "SELECT * FROM places"
+    if active_only:
+        sql += " WHERE active = 1"
+    sql += " ORDER BY sort_order ASC, created_at ASC"
+    with connect() as conn:
+        return [_to_place(r) for r in conn.execute(sql).fetchall()]
+
+
+def get_place(place_id: str) -> Place | None:
+    with connect() as conn:
+        r = conn.execute("SELECT * FROM places WHERE id=?", (place_id,)).fetchone()
+    return _to_place(r) if r else None
+
+
+def update_place(place_id: str, data: PlaceBase,
+                 image_url: str | None, image_file_id: str | None) -> bool:
+    sets = ["sort_order=?", "name=?", "location=?", "description=?", "active=?"]
+    params: list = [data.sort_order, data.name, data.location, data.description,
+                    1 if data.active else 0]
+    if image_url:
+        sets += ["image_url=?", "image_file_id=?"]
+        params += [image_url, image_file_id]
+    params.append(place_id)
+    with connect() as conn:
+        return conn.execute(f"UPDATE places SET {', '.join(sets)} WHERE id=?", params).rowcount > 0
+
+
+def delete_place(place_id: str) -> bool:
+    with connect() as conn:
+        return conn.execute("DELETE FROM places WHERE id=?", (place_id,)).rowcount > 0
