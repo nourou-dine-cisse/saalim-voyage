@@ -5,8 +5,11 @@ SMTP standard : fonctionne avec Gmail, un fournisseur pro, ou un service type
 Resend/SendGrid en mode SMTP. Un echec d'envoi ne doit JAMAIS faire echouer la
 soumission du visiteur : on journalise et on continue.
 """
+import json
 import smtplib
 import socket
+import urllib.error
+import urllib.request
 from contextlib import contextmanager
 from email.message import EmailMessage
 
@@ -36,9 +39,45 @@ def _force_ipv4():
         socket.getaddrinfo = original
 
 
+def _send_via_resend(subject: str, body: str) -> None:
+    """
+    Envoi via l'API HTTPS de Resend (port 443). Utilise des que RESEND_API_KEY
+    est definie : indispensable sur Railway, qui bloque le SMTP sortant sur
+    tous les ports. Le forcage IPv4 s'applique ici aussi, faute de route IPv6.
+    """
+    settings = get_settings()
+    payload = json.dumps({
+        "from": settings.resend_from,
+        "to": [settings.admin_notification_email],
+        "subject": subject,
+        "text": body,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with _force_ipv4(), urllib.request.urlopen(req, timeout=20) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:400]
+        raise RuntimeError(f"Resend a refuse l'envoi (code {exc.code}) : {detail}") from exc
+
+
 def _send(subject: str, body: str) -> None:
     """Envoi brut. Leve une exception en cas d'echec (gere par les appelants)."""
     settings = get_settings()
+
+    # Voie HTTPS prioritaire si configuree (seule option viable sur Railway).
+    if settings.resend_api_key:
+        _send_via_resend(subject, body)
+        return
 
     msg = EmailMessage()
     msg["Subject"] = subject
