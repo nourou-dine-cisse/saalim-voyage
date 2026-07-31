@@ -18,13 +18,23 @@ from app.email_service import _send  # noqa: E402
 
 def main():
     s = get_settings()
-    print("Configuration utilisee :")
-    print(f"  serveur     : {s.smtp_host}:{s.smtp_port}")
-    print(f"  compte      : {s.smtp_username}")
-    print(f"  expediteur  : {s.smtp_from}")
-    print(f"  destinataire: {s.admin_notification_email}")
-    if "gmail.com" in s.smtp_host and s.smtp_from != s.smtp_username:
-        print("  NOTE : Gmail imposera l'adresse du compte comme expediteur.")
+
+    if s.resend_api_key:
+        print("VOIE UTILISEE : Resend (HTTPS)")
+        print(f"  cle         : {s.resend_api_key[:7]}... ({len(s.resend_api_key)} caracteres)")
+        print(f"  expediteur  : {s.resend_from}")
+        print(f"  destinataire: {s.admin_notification_email}")
+    else:
+        print("VOIE UTILISEE : SMTP")
+        print(f"  serveur     : {s.smtp_host}:{s.smtp_port}")
+        print(f"  compte      : {s.smtp_username}")
+        print(f"  expediteur  : {s.smtp_from}")
+        print(f"  destinataire: {s.admin_notification_email}")
+        print()
+        print("  ATTENTION : RESEND_API_KEY n'est pas definie.")
+        print("  Railway bloque le SMTP sortant : cet envoi echouera.")
+        print("  Ajoutez RESEND_API_KEY dans les variables du service,")
+        print("  et verifiez que le dernier code est bien deploye.")
     print()
 
     try:
@@ -32,7 +42,15 @@ def main():
     except Exception as exc:  # noqa: BLE001
         print(f"ECHEC : {type(exc).__name__} — {exc}\n")
         message = str(exc).lower()
-        if "authentication" in message or "username and password" in message:
+        if "you can only send" in message or "testing emails" in message:
+            print("Cause : Resend n'autorise l'envoi que vers l'adresse du compte")
+            print("tant qu'aucun domaine n'est verifie.")
+            print(f"Creez le compte Resend avec {s.admin_notification_email},")
+            print("ou changez ADMIN_NOTIFICATION_EMAIL pour l'adresse du compte.")
+        elif "api key" in message or "unauthorized" in message or "401" in message:
+            print("Cause : cle Resend invalide ou incomplete. Regenerez-la sur")
+            print("resend.com/api-keys et recopiez-la entierement.")
+        elif "authentication" in message or "username and password" in message:
             print("Cause probable : SMTP_PASSWORD invalide.")
             print("Gmail exige un MOT DE PASSE D'APPLICATION (16 caracteres),")
             print("pas le mot de passe habituel du compte : myaccount.google.com/apppasswords")
