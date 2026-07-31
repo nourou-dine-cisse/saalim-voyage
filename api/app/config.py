@@ -4,6 +4,7 @@ Ne jamais committer de vraies valeurs ici — voir .env.example pour le modèle 
 """
 from functools import lru_cache
 
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -56,6 +57,39 @@ class Settings(BaseSettings):
     environment: str = "development"
 
 
+# Explication lisible de chaque variable, affichee si elle manque au demarrage.
+FIELD_HELP = {
+    "google_oauth_client_id": "GOOGLE_OAUTH_CLIENT_ID — genere par scripts/get_refresh_token.py",
+    "google_oauth_client_secret": "GOOGLE_OAUTH_CLIENT_SECRET — genere par scripts/get_refresh_token.py",
+    "google_oauth_refresh_token": "GOOGLE_OAUTH_REFRESH_TOKEN — genere par scripts/get_refresh_token.py",
+    "drive_root_folder_id": "DRIVE_ROOT_FOLDER_ID — ID du dossier Drive (dans son URL)",
+    "registrations_index_sheet_id": "REGISTRATIONS_INDEX_SHEET_ID — ID de la Google Sheet (dans son URL)",
+    "smtp_host": "SMTP_HOST — ex. smtp.gmail.com",
+    "smtp_username": "SMTP_USERNAME — adresse d'envoi des notifications",
+    "smtp_password": "SMTP_PASSWORD — mot de passe d'application Gmail",
+    "smtp_from": "SMTP_FROM — adresse affichee comme expediteur",
+    "admin_notification_email": "ADMIN_NOTIFICATION_EMAIL — adresse qui recoit les notifications",
+    "admin_email": "ADMIN_EMAIL — identifiant de connexion a /admin",
+    "admin_password_hash": "ADMIN_PASSWORD_HASH — genere par scripts/hash_password.py",
+    "jwt_secret": "JWT_SECRET — genere par scripts/hash_password.py",
+}
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as exc:
+        missing = [str(err["loc"][0]) for err in exc.errors()]
+        lignes = "\n".join(f"  - {FIELD_HELP.get(nom, nom.upper())}" for nom in missing)
+        raise SystemExit(
+            "\n"
+            "==================================================================\n"
+            f" DEMARRAGE IMPOSSIBLE : {len(missing)} variable(s) d'environnement manquante(s)\n"
+            "==================================================================\n"
+            f"{lignes}\n\n"
+            "En local  : renseignez-les dans api/.env (modele : api/.env.example)\n"
+            "Sur Railway : onglet Variables du service\n"
+            "Attention : les noms sont sensibles a la casse et sans espace autour du '='.\n"
+            "=================================================================="
+        ) from exc
