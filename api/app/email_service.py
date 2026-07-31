@@ -6,10 +6,34 @@ Resend/SendGrid en mode SMTP. Un echec d'envoi ne doit JAMAIS faire echouer la
 soumission du visiteur : on journalise et on continue.
 """
 import smtplib
+import socket
+from contextlib import contextmanager
 from email.message import EmailMessage
 
 from .config import get_settings
 from .schemas import RegistrationCreate
+
+
+@contextmanager
+def _force_ipv4():
+    """
+    Force la resolution DNS en IPv4 le temps de la connexion SMTP.
+
+    Gmail publie des adresses IPv6, que Python essaie en premier. Or beaucoup
+    de conteneurs (dont Railway, ou la sortie IPv6 est desactivee) n'ont aucune
+    route IPv6 : la connexion echoue alors avec "[Errno 101] Network is
+    unreachable" avant meme d'avoir tente l'IPv4.
+    """
+    original = socket.getaddrinfo
+
+    def ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+        return original(host, port, socket.AF_INET, type, proto, flags)
+
+    socket.getaddrinfo = ipv4_only
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
 
 
 def _send(subject: str, body: str) -> None:
@@ -32,15 +56,16 @@ def _send(subject: str, body: str) -> None:
     #  - 587 (et autres) : connexion claire puis passage en TLS (STARTTLS)
     # Le timeout explicite evite un blocage indefini si le port est filtre par
     # l'hebergeur, qui jette les paquets au lieu de refuser la connexion.
-    if settings.smtp_port == 465:
-        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-            server.login(settings.smtp_username, settings.smtp_password)
-            server.send_message(msg)
-    else:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-            server.starttls()
-            server.login(settings.smtp_username, settings.smtp_password)
-            server.send_message(msg)
+    with _force_ipv4():
+        if settings.smtp_port == 465:
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                server.starttls()
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.send_message(msg)
 
 
 def notify_admin(subject: str, body: str) -> None:
