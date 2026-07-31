@@ -72,6 +72,18 @@ CREATE TABLE IF NOT EXISTS registrations (
     status TEXT NOT NULL DEFAULT 'new'
 );
 
+CREATE TABLE IF NOT EXISTS departures (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    date TEXT NOT NULL,
+    package_label TEXT NOT NULL,
+    seats INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    image_url TEXT,
+    image_file_id TEXT,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS packages (
     id TEXT PRIMARY KEY,
     created_at TEXT NOT NULL,

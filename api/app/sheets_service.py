@@ -155,7 +155,7 @@ def list_registrations() -> list[RegistrationIndexRow]:
     rows = _read(get_settings().registrations_index_sheet_tab, REGISTRATIONS_HEADER)
     out = [
         RegistrationIndexRow(
-            registration_id=r[0],
+            id=r[0],
             created_at=r[1],
             full_name=r[2],
             email=r[3],

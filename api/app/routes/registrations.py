@@ -7,8 +7,8 @@ from ..auth import require_admin
 from ..drive_service import create_pilgrim_folder, upload_fiche, upload_passport
 from ..email_service import notify_admin_new_registration
 from .. import store
-from ..schemas import RegistrationCreate, RegistrationResult, RegistrationRow, ServiceType
-from ..sheets_service import append_registration_row
+from ..schemas import RegistrationCreate, RegistrationIndexRow, RegistrationResult, ServiceType
+from ..sheets_service import append_registration_row, list_registrations
 
 router = APIRouter(prefix="/registrations", tags=["registrations"])
 
@@ -94,10 +94,11 @@ async def submit_registration(
     )
 
 
-@router.get("", response_model=list[RegistrationRow], dependencies=[Depends(require_admin)])
+@router.get("", response_model=list[RegistrationIndexRow], dependencies=[Depends(require_admin)])
 def get_registrations():
     """
-    Reserve a l'admin. Lecture depuis SQLite (rapide, et insensible a une panne
-    de l'API Google) ; le lien vers le dossier Drive du pelerin est conserve.
+    Reserve a l'admin : lecture depuis la Google Sheet, qui reste la reference
+    consultable directement dans Drive. SQLite en garde une copie de secours
+    (voir store.create_registration) au cas ou la feuille serait perdue.
     """
-    return store.list_registrations_db()
+    return list_registrations()

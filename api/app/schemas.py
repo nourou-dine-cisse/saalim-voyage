@@ -41,32 +41,33 @@ class RegistrationResult(BaseModel):
 
 
 class RegistrationIndexRow(BaseModel):
-    """Une ligne telle que lue depuis la Google Sheet d'index, pour l'admin."""
-    registration_id: str
+    """Inscription lue depuis la Google Sheet : source affichee dans l'admin."""
+    id: str
     created_at: str
     full_name: str
     email: str
     phone: str
     service_type: str
     departure_date: Optional[str] = None
-    drive_folder_link: str
+    drive_folder_link: Optional[str] = None
 
 
 # --- Contenu editable depuis l'admin (dates de depart, videos) --------------
 
 
-class Departure(BaseModel):
-    id: str
-    created_at: str
+class DepartureBase(BaseModel):
     date: str  # ISO YYYY-MM-DD
-    package_label: str
-    seats: int
-
-
-class DepartureCreate(BaseModel):
-    date: date_type
     package_label: str = Field(min_length=1, max_length=120)
     seats: int = Field(ge=0, le=10_000)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    active: bool = True
+
+
+class Departure(DepartureBase):
+    id: str
+    created_at: str
+    image_url: Optional[str] = None
+    image_file_id: Optional[str] = None
 
 
 class Video(BaseModel):

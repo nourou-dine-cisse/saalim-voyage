@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from .db import connect
 from .schemas import (
     ContactMessage,
+    Departure,
+    DepartureBase,
     Package,
     PackageBase,
     RegistrationRow,
@@ -276,3 +278,59 @@ def list_video_links() -> list[VideoLink]:
 def delete_video_link(video_id: str) -> bool:
     with connect() as conn:
         return conn.execute("DELETE FROM videos WHERE id=?", (video_id,)).rowcount > 0
+
+
+# --- Dates de depart ------------------------------------------------------
+
+
+def _to_departure(r) -> Departure:
+    d = dict(r)
+    d["active"] = bool(d["active"])
+    return Departure(**d)
+
+
+def create_departure(data: DepartureBase, image_url: str | None, image_file_id: str | None) -> Departure:
+    row_id = _new_id()
+    created = _now()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO departures
+               (id, created_at, date, package_label, seats, description, image_url, image_file_id, active)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (row_id, created, data.date, data.package_label, data.seats,
+             data.description, image_url, image_file_id, 1 if data.active else 0),
+        )
+    return Departure(id=row_id, created_at=created, image_url=image_url,
+                     image_file_id=image_file_id, **data.model_dump())
+
+
+def list_departures_db(active_only: bool) -> list[Departure]:
+    sql = "SELECT * FROM departures"
+    if active_only:
+        sql += " WHERE active = 1"
+    sql += " ORDER BY date ASC"
+    with connect() as conn:
+        return [_to_departure(r) for r in conn.execute(sql).fetchall()]
+
+
+def get_departure(departure_id: str) -> Departure | None:
+    with connect() as conn:
+        r = conn.execute("SELECT * FROM departures WHERE id=?", (departure_id,)).fetchone()
+    return _to_departure(r) if r else None
+
+
+def update_departure(departure_id: str, data: DepartureBase,
+                     image_url: str | None, image_file_id: str | None) -> bool:
+    sets = ["date=?", "package_label=?", "seats=?", "description=?", "active=?"]
+    params: list = [data.date, data.package_label, data.seats, data.description, 1 if data.active else 0]
+    if image_url:
+        sets += ["image_url=?", "image_file_id=?"]
+        params += [image_url, image_file_id]
+    params.append(departure_id)
+    with connect() as conn:
+        return conn.execute(f"UPDATE departures SET {', '.join(sets)} WHERE id=?", params).rowcount > 0
+
+
+def delete_departure_db(departure_id: str) -> bool:
+    with connect() as conn:
+        return conn.execute("DELETE FROM departures WHERE id=?", (departure_id,)).rowcount > 0

@@ -13,22 +13,16 @@ export interface RegistrationResult {
   drive_folder_link: string;
 }
 
+/** Inscription telle que lue depuis la Google Sheet (source affichée dans l'admin). */
 export interface RegistrationIndexRow {
   id: string;
   created_at: string;
   full_name: string;
   email: string;
   phone: string;
-  whatsapp: string | null;
-  country: string | null;
-  city: string | null;
   service_type: string;
   departure_date: string | null;
-  notes: string | null;
-  passport_valid_6_months: boolean;
-  language: string;
   drive_folder_link: string | null;
-  status: string;
 }
 
 /**
@@ -95,6 +89,19 @@ export interface Departure {
   date: string;
   package_label: string;
   seats: number;
+  description: string | null;
+  image_url: string | null;
+  image_file_id: string | null;
+  active: boolean;
+}
+
+/** Champs d'une date de départ tels que saisis dans l'admin. */
+export interface DepartureForm {
+  date: string;
+  package_label: string;
+  seats: number;
+  description: string;
+  active: boolean;
 }
 
 export interface Video {
@@ -144,24 +151,51 @@ async function getJson<T>(path: string, token?: string): Promise<T> {
 /** Dates de depart affichees dans la section Planning (lecture publique). */
 export const fetchDepartures = () => getJson<Departure[]>("/departures");
 
+export const fetchAllDepartures = (token: string) => getJson<Departure[]>("/departures/all", token);
+
+function departureFormData(form: DepartureForm, image: File | null): FormData {
+  const fd = new FormData();
+  fd.append("date", form.date);
+  fd.append("package_label", form.package_label);
+  fd.append("seats", String(form.seats));
+  fd.append("description", form.description);
+  fd.append("active", String(form.active));
+  if (image) fd.append("image", image);
+  return fd;
+}
+
 export async function createDeparture(
   token: string,
-  payload: { date: string; package_label: string; seats: number },
+  form: DepartureForm,
+  image: File | null,
 ): Promise<Departure> {
   const res = await request("/departures", {
     method: "POST",
-    headers: { ...authHeaders(token), "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: authHeaders(token),
+    body: departureFormData(form, image),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+/** L'image n'est remplacée que si un nouveau fichier est fourni. */
+export async function updateDeparture(
+  token: string,
+  id: string,
+  form: DepartureForm,
+  image: File | null,
+): Promise<Departure> {
+  const res = await request(`/departures/${id}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: departureFormData(form, image),
   });
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
 
 export async function deleteDeparture(token: string, id: string): Promise<void> {
-  const res = await request(`/departures/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
+  const res = await request(`/departures/${id}`, { method: "DELETE", headers: authHeaders(token) });
   if (!res.ok) throw new Error(await readError(res));
 }
 

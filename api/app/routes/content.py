@@ -9,8 +9,7 @@ from pydantic import BaseModel
 from .. import store
 from ..auth import require_admin
 from ..drive_service import delete_file, upload_image
-from ..schemas import Departure, DepartureCreate, Package, PackageBase, VideoLinkCreate
-from ..sheets_service import add_departure, delete_departure, list_departures
+from ..schemas import Departure, DepartureBase, Package, PackageBase, VideoLinkCreate
 from ..youtube import extract_youtube_id
 
 
@@ -30,24 +29,114 @@ MAX_VIDEO_SIZE = 200 * 1024 * 1024  # 200 Mo
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-m4v"}
 
 
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+def _parse_package_form(
+    name: str, duration: str | None, price: str | None, description: str | None,
+    features: str | None, sort_order: int, active: bool,
+) -> PackageBase:
+    """features arrive en texte, une inclusion par ligne."""
+    liste = [l.strip() for l in (features or "").splitlines() if l.strip()]
+    return PackageBase(
+        name=name.strip(), duration=(duration or None), price=(price or None),
+        description=(description or None), features=liste,
+        sort_order=sort_order, active=active,
+    )
+
+
+async def _read_image(image: UploadFile | None) -> bytes:
+    if image is None or not image.filename:
+        return b""
+    if image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Image non supportee (JPG, PNG, WEBP).")
+    content = await image.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail="Image trop lourde (max 5 Mo).")
+    return content
+
+
 # --- Dates de depart ------------------------------------------------------
 
 
 @router.get("/departures", response_model=list[Departure])
 def get_departures():
     """Public : alimente la section Planning du site."""
-    return list_departures()
+    return store.list_departures_db(active_only=True)
+
+
+@router.get("/departures/all", response_model=list[Departure], dependencies=[Depends(require_admin)])
+def get_all_departures():
+    return store.list_departures_db(active_only=False)
+
+
+def _parse_departure_form(
+    date: str, package_label: str, seats: int, description: str | None, active: bool,
+) -> DepartureBase:
+    return DepartureBase(
+        date=date.strip(), package_label=package_label.strip(), seats=seats,
+        description=(description or None), active=active,
+    )
 
 
 @router.post("/departures", response_model=Departure, dependencies=[Depends(require_admin)])
-def create_departure(payload: DepartureCreate):
-    return add_departure(payload.date.isoformat(), payload.package_label, payload.seats)
+async def create_departure(
+    date: str = Form(...),
+    package_label: str = Form(...),
+    seats: int = Form(0),
+    description: str | None = Form(None),
+    active: bool = Form(True),
+    image: UploadFile | None = File(None),
+):
+    data = _parse_departure_form(date, package_label, seats, description, active)
+    content = await _read_image(image)
+    image_url = image_file_id = None
+    if content:
+        image_file_id, image_url = upload_image(image, content)
+    return store.create_departure(data, image_url, image_file_id)
+
+
+@router.put("/departures/{departure_id}", response_model=Departure, dependencies=[Depends(require_admin)])
+async def edit_departure(
+    departure_id: str,
+    date: str = Form(...),
+    package_label: str = Form(...),
+    seats: int = Form(0),
+    description: str | None = Form(None),
+    active: bool = Form(True),
+    image: UploadFile | None = File(None),
+):
+    existing = store.get_departure(departure_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Date introuvable")
+
+    data = _parse_departure_form(date, package_label, seats, description, active)
+    content = await _read_image(image)
+    image_url = image_file_id = None
+    if content:
+        image_file_id, image_url = upload_image(image, content)
+        if existing.image_file_id:
+            try:
+                delete_file(existing.image_file_id)
+            except Exception:  # noqa: BLE001
+                pass
+
+    store.update_departure(departure_id, data, image_url, image_file_id)
+    return store.get_departure(departure_id)
 
 
 @router.delete("/departures/{departure_id}", dependencies=[Depends(require_admin)])
 def remove_departure(departure_id: str):
-    if not delete_departure(departure_id):
+    existing = store.get_departure(departure_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Date introuvable")
+    if existing.image_file_id:
+        try:
+            delete_file(existing.image_file_id)
+        except Exception:  # noqa: BLE001
+            pass
+    store.delete_departure_db(departure_id)
     return {"deleted": departure_id}
 
 
@@ -92,34 +181,6 @@ def remove_video(video_id: str):
 
 
 # --- Forfaits -------------------------------------------------------------
-
-MAX_IMAGE_SIZE = 5 * 1024 * 1024
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-
-
-def _parse_package_form(
-    name: str, duration: str | None, price: str | None, description: str | None,
-    features: str | None, sort_order: int, active: bool,
-) -> PackageBase:
-    """features arrive en texte, une inclusion par ligne."""
-    liste = [l.strip() for l in (features or "").splitlines() if l.strip()]
-    return PackageBase(
-        name=name.strip(), duration=(duration or None), price=(price or None),
-        description=(description or None), features=liste,
-        sort_order=sort_order, active=active,
-    )
-
-
-async def _read_image(image: UploadFile | None) -> bytes:
-    if image is None or not image.filename:
-        return b""
-    if image.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Image non supportee (JPG, PNG, WEBP).")
-    content = await image.read()
-    if len(content) > MAX_IMAGE_SIZE:
-        raise HTTPException(status_code=400, detail="Image trop lourde (max 5 Mo).")
-    return content
-
 
 @router.get("/packages", response_model=list[Package])
 def get_packages():

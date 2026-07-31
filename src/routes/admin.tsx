@@ -9,7 +9,8 @@ import {
   createDeparture,
   deleteDeparture,
   deleteVideo,
-  fetchDepartures,
+  fetchAllDepartures,
+  updateDeparture,
   fetchRegistrations,
   fetchVideos,
   addVideo,
@@ -27,6 +28,7 @@ import {
   type AdminStats,
   type ContactMessage,
   type Departure,
+  type DepartureForm,
   type Payment,
   type RegistrationIndexRow,
   type Review,
@@ -590,19 +592,27 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 /** Jeton de session admin pour les appels API protégés. */
 const adminToken = async (): Promise<string> => requireToken();
 
+const EMPTY_DEPARTURE: DepartureForm = {
+  date: "",
+  package_label: "",
+  seats: 20,
+  description: "",
+  active: true,
+};
+
 function DeparturesAdmin() {
   const { t, lang } = useLang();
   const [rows, setRows] = useState<Departure[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [date, setDate] = useState("");
-  const [label, setLabel] = useState("");
-  const [seats, setSeats] = useState("20");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<DepartureForm>(EMPTY_DEPARTURE);
+  const [image, setImage] = useState<File | null>(null);
 
   const load = async () => {
     try {
-      setRows(await fetchDepartures());
+      setRows(await fetchAllDepartures(await adminToken()));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -615,20 +625,34 @@ function DeparturesAdmin() {
     load();
   }, []);
 
-  const add = async (e: React.FormEvent) => {
+  const reset = () => {
+    setEditingId(null);
+    setForm(EMPTY_DEPARTURE);
+    setImage(null);
+  };
+
+  const startEdit = (d: Departure) => {
+    setEditingId(d.id);
+    setForm({
+      date: d.date,
+      package_label: d.package_label,
+      seats: d.seats,
+      description: d.description ?? "",
+      active: d.active,
+    });
+    setImage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
       const token = await adminToken();
-      await createDeparture(token, {
-        date,
-        package_label: label.trim(),
-        seats: Number(seats) || 0,
-      });
-      setDate("");
-      setLabel("");
-      setSeats("20");
+      if (editingId) await updateDeparture(token, editingId, form, image);
+      else await createDeparture(token, form, image);
+      reset();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -642,6 +666,7 @@ function DeparturesAdmin() {
     try {
       await deleteDeparture(await adminToken(), id);
       setRows((rs) => rs.filter((r) => r.id !== id));
+      if (editingId === id) reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -659,53 +684,96 @@ function DeparturesAdmin() {
         });
   };
 
+  const field = "w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm";
+  const label = "block text-xs font-semibold text-foreground/80 mb-1.5";
+
   return (
     <div className="space-y-6">
-      <form onSubmit={add} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
-        <h3 className="font-display text-lg font-semibold text-foreground">Ajouter une date de départ</h3>
+      <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-foreground">
+            {editingId ? "Modifier le départ" : "Ajouter une date de départ"}
+          </h3>
+          {editingId && (
+            <button type="button" onClick={reset} className="text-xs text-primary underline">
+              Annuler la modification
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <label className="block sm:col-span-1">
-            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Date *</span>
+          <label className="block">
+            <span className={label}>Date *</span>
             <input
               type="date"
               required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              className={field}
             />
           </label>
           <label className="block sm:col-span-2">
-            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Forfait *</span>
+            <span className={label}>Forfait *</span>
             <input
               required
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              value={form.package_label}
+              onChange={(e) => setForm({ ...form, package_label: e.target.value })}
               placeholder="Omra Confort"
-              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+              className={field}
             />
           </label>
-          <label className="block sm:col-span-1">
-            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Places</span>
+          <label className="block">
+            <span className={label}>Places</span>
             <input
               type="number"
               min={0}
-              value={seats}
-              onChange={(e) => setSeats(e.target.value)}
-              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+              value={form.seats}
+              onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 0 })}
+              className={field}
             />
           </label>
         </div>
-        {error && (
-          <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-3">
-            {error}
-          </div>
-        )}
+
+        <label className="block">
+          <span className={label}>Description</span>
+          <textarea
+            rows={2}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Vol direct Dakar-Djeddah, hôtel à 300 m du Haram…"
+            className={field}
+          />
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+          <label className="block">
+            <span className={label}>Image {editingId && "(laisser vide pour conserver l'actuelle)"}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+              className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+              className="w-4 h-4 accent-primary"
+            />
+            <span className="text-foreground">Visible sur le site</span>
+          </label>
+        </div>
+
+        {error && <ErrorBox msg={error} />}
+
         <button
           type="submit"
           disabled={saving}
           className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
         >
-          {saving ? "..." : "Ajouter"}
+          {saving ? "..." : editingId ? "Enregistrer" : "Ajouter"}
         </button>
       </form>
 
@@ -714,36 +782,38 @@ function DeparturesAdmin() {
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground italic">{t.admin.noData}</p>
       ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted">
-                <tr>
-                  <Th>Date</Th>
-                  <Th>Forfait</Th>
-                  <Th>Places</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <Td className="capitalize">{fmt(r.date)}</Td>
-                    <Td>{r.package_label}</Td>
-                    <Td>{r.seats}</Td>
-                    <Td>
-                      <button
-                        onClick={() => remove(r.id)}
-                        className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
-                      >
-                        Supprimer
-                      </button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {rows.map((d) => (
+            <div key={d.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
+              {d.image_url && (
+                <div className="aspect-[4/3] bg-muted">
+                  <img src={d.image_url} alt={d.package_label} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+              )}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-display font-semibold text-foreground capitalize text-sm">{fmt(d.date)}</span>
+                  <Badge ok={d.active}>{d.active ? "visible" : "masqué"}</Badge>
+                </div>
+                <div className="text-sm text-primary font-semibold">{d.package_label}</div>
+                <div className="text-xs text-muted-foreground">{d.seats} places</div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => startEdit(d)}
+                    className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => remove(d.id)}
+                    className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
