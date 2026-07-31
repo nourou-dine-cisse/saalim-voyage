@@ -80,12 +80,8 @@ async def submit_registration(
     except Exception as exc:  # noqa: BLE001 - l'inscription est deja sauvegardee en base
         print(f"[sheets] index non mis a jour : {exc}")
 
-    # 4. Notification admin — un échec ici ne doit pas faire échouer l'inscription
-    try:
-        notify_admin_new_registration(reg, folder_link)
-    except Exception:  # noqa: BLE001
-        # À remplacer par un vrai logger + alerte de supervision en prod.
-        pass
+    # 4. Notification admin (journalisee, ne fait jamais echouer l'inscription)
+    notify_admin_new_registration(reg, folder_link)
 
     return RegistrationResult(
         registration_id=folder_id,

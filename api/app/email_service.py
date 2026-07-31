@@ -1,7 +1,9 @@
 """
-Notification e-mail à l'admin à chaque inscription validée.
-SMTP simple par défaut (fonctionne avec Gmail, un fournisseur pro, ou un service
-comme Resend/SendGrid en mode SMTP) — pas de dépendance à un fournisseur précis.
+Notifications e-mail vers l'agence (inscription, paiement, message de contact).
+
+SMTP standard : fonctionne avec Gmail, un fournisseur pro, ou un service type
+Resend/SendGrid en mode SMTP. Un echec d'envoi ne doit JAMAIS faire echouer la
+soumission du visiteur : on journalise et on continue.
 """
 import smtplib
 from email.message import EmailMessage
@@ -10,47 +12,54 @@ from .config import get_settings
 from .schemas import RegistrationCreate
 
 
-def notify_admin_new_registration(reg: RegistrationCreate, drive_folder_link: str) -> None:
+def _send(subject: str, body: str) -> None:
+    """Envoi brut. Leve une exception en cas d'echec (gere par les appelants)."""
     settings = get_settings()
 
     msg = EmailMessage()
-    msg["Subject"] = f"Nouvelle inscription — {reg.full_name}"
-    msg["From"] = settings.smtp_from
+    msg["Subject"] = subject
+    # Gmail refuse une adresse d'expedition differente du compte authentifie
+    # (sauf alias verifie) : on retombe donc sur SMTP_USERNAME en cas d'ecart.
+    expediteur = settings.smtp_from or settings.smtp_username
+    if "gmail.com" in settings.smtp_host and expediteur != settings.smtp_username:
+        expediteur = settings.smtp_username
+    msg["From"] = expediteur
     msg["To"] = settings.admin_notification_email
-    msg.set_content(
-        "Nouvelle inscription reçue sur Saalim Voyages.\n\n"
-        f"Nom : {reg.full_name}\n"
-        f"Email : {reg.email}\n"
-        f"Téléphone : {reg.phone}\n"
-        f"Service : {reg.service_type.value}\n"
-        f"Date de départ souhaitée : {reg.departure_date or 'non précisée'}\n"
-        f"Notes : {reg.notes or '—'}\n\n"
-        f"Dossier complet (fiche + passeport) : {drive_folder_link}\n"
-    )
+    msg.set_content(body)
 
-    # timeout explicite : évite un blocage indéfini si le port SMTP est filtré
-    # par le réseau (firewall/FAI qui droppe les paquets au lieu de les rejeter).
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
+    # timeout explicite : evite un blocage indefini si le port SMTP est filtre
+    # par le reseau (firewall qui jette les paquets au lieu de les refuser).
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
         server.starttls()
         server.login(settings.smtp_username, settings.smtp_password)
         server.send_message(msg)
 
 
-def notify_admin_simple(subject: str, body: str) -> None:
-    """
-    Notification generique a l'agence (paiement declare, message de contact...).
-    Un echec d'envoi ne doit jamais faire echouer la soumission du visiteur.
-    """
-    settings = get_settings()
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = settings.smtp_from
-    msg["To"] = settings.admin_notification_email
-    msg.set_content(body)
+def notify_admin(subject: str, body: str) -> None:
+    """Notification tolerante a la panne : journalise l'erreur au lieu de la propager."""
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
-            server.starttls()
-            server.login(settings.smtp_username, settings.smtp_password)
-            server.send_message(msg)
+        _send(subject, body)
+        print(f"[email] envoye : {subject}")
     except Exception as exc:  # noqa: BLE001
-        print(f"[email] envoi impossible ({subject}): {exc}")
+        print(f"[email] ECHEC ({subject}) : {type(exc).__name__} — {exc}")
+
+
+# Conserve pour compatibilite avec les appels existants.
+notify_admin_simple = notify_admin
+
+
+def notify_admin_new_registration(reg: RegistrationCreate, drive_folder_link: str) -> None:
+    notify_admin(
+        f"Nouvelle inscription — {reg.full_name}",
+        "Nouvelle inscription recue sur Saalim Voyages.\n\n"
+        f"Nom : {reg.full_name}\n"
+        f"Email : {reg.email}\n"
+        f"Telephone : {reg.phone}\n"
+        f"WhatsApp : {reg.whatsapp or '—'}\n"
+        f"Pays / ville : {reg.country or '—'} / {reg.city or '—'}\n"
+        f"Service : {reg.service_type.value}\n"
+        f"Date de depart souhaitee : {reg.departure_date or 'non precisee'}\n"
+        f"Passeport valide 6 mois : {'oui' if reg.passport_valid_6_months else 'non'}\n"
+        f"Notes : {reg.notes or '—'}\n\n"
+        f"Dossier complet (fiche + passeport) : {drive_folder_link}\n",
+    )
