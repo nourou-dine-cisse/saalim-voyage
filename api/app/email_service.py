@@ -5,16 +5,54 @@ SMTP standard : fonctionne avec Gmail, un fournisseur pro, ou un service type
 Resend/SendGrid en mode SMTP. Un echec d'envoi ne doit JAMAIS faire echouer la
 soumission du visiteur : on journalise et on continue.
 """
+import json
 import smtplib
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 
 from .config import get_settings
 from .schemas import RegistrationCreate
 
 
+def _send_via_resend(subject: str, body: str) -> None:
+    """
+    Envoi via l'API HTTPS de Resend. Utilise quand RESEND_API_KEY est definie :
+    une simple requete web, donc insensible aux blocages du port SMTP que
+    pratiquent certains hebergeurs contre le spam.
+    """
+    settings = get_settings()
+    payload = json.dumps({
+        "from": settings.resend_from,
+        "to": [settings.admin_notification_email],
+        "subject": subject,
+        "text": body,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"Resend a refuse l'envoi ({exc.code}) : {detail}") from exc
+
+
 def _send(subject: str, body: str) -> None:
     """Envoi brut. Leve une exception en cas d'echec (gere par les appelants)."""
     settings = get_settings()
+
+    if settings.resend_api_key:
+        _send_via_resend(subject, body)
+        return
 
     msg = EmailMessage()
     msg["Subject"] = subject

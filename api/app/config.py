@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     smtp_from: str
     admin_notification_email: str
 
+    # --- Envoi HTTP (secours si le port SMTP est bloque par l'hebergeur) ---
+    # Si RESEND_API_KEY est renseignee, l'envoi passe par l'API HTTPS de Resend
+    # au lieu du SMTP : insensible aux blocages de ports sortants.
+    resend_api_key: str = ""
+    resend_from: str = "Saalim Voyages <onboarding@resend.dev>"
+
     # --- Compte admin (authentification gérée par l'API, un seul compte) ---
     # Le mot de passe n'est jamais stocké en clair : ADMIN_PASSWORD_HASH contient une
     # empreinte générée par `python scripts/hash_password.py`.
