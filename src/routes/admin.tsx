@@ -1,8 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  clearToken,
+  getToken,
+  login as apiLogin,
+  API_URL,
+  requireToken,
+  createDeparture,
+  deleteDeparture,
+  deleteVideo,
+  fetchDepartures,
+  fetchRegistrations,
+  fetchVideos,
+  uploadVideo,
+  approveReview,
+  confirmPayment,
+  fetchAllReviews,
+  fetchContactMessages,
+  fetchPayments,
+  fetchStats,
+  removeReview,
+  type AdminStats,
+  type ContactMessage,
+  type Departure,
+  type Payment,
+  type RegistrationIndexRow,
+  type Review,
+  type Video,
+} from "@/lib/api";
 import { LangProvider, useLang } from "@/i18n/LangContext";
-import type { Session } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -23,66 +49,34 @@ function AdminPage() {
 }
 
 function AdminInner() {
-  const { t } = useLang();
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [checking, setChecking] = useState(true);
+  // La session admin est gérée par l'API (un seul compte, jeton signé).
+  const [token, setTokenState] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      if (!s) {
-        setIsAdmin(null);
-        setChecking(false);
-      }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (!data.session) setChecking(false);
-    });
-    return () => sub.subscription.unsubscribe();
+    setTokenState(getToken());
+    setReady(true);
   }, []);
 
-  useEffect(() => {
-    if (!session) return;
-    setChecking(true);
-    (async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!error && !!data);
-      setChecking(false);
-    })();
-  }, [session]);
+  const signOut = () => {
+    clearToken();
+    setTokenState(null);
+  };
 
-  if (!session) return <Login />;
-  if (checking) return <CenterMsg msg={t.common.loading} />;
-  if (!isAdmin) return <CenterMsg msg={t.admin.forbidden} signOut />;
-  return <Dashboard />;
+  if (!ready) return null;
+  if (!token) return <Login onSuccess={() => setTokenState(getToken())} />;
+  return <Dashboard onSignOut={signOut} />;
 }
 
-function CenterMsg({ msg, signOut }: { msg: string; signOut?: boolean }) {
+function CenterMsg({ msg }: { msg: string }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="text-center space-y-4">
-        <p className="text-foreground">{msg}</p>
-        {signOut && (
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="text-sm text-primary underline"
-          >
-            ↩ Sign out
-          </button>
-        )}
-      </div>
+      <p className="text-foreground text-center">{msg}</p>
     </div>
   );
 }
 
-function Login() {
+function Login({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useLang();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,9 +87,14 @@ function Login() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setSubmitting(false);
-    if (err) setError(t.admin.invalidCreds);
+    try {
+      await apiLogin(email, password);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.admin.invalidCreds);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -103,6 +102,9 @@ function Login() {
       <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 shadow-elegant">
         <h1 className="font-display text-2xl font-semibold text-foreground">{t.admin.loginTitle}</h1>
         <p className="text-sm text-muted-foreground mt-1 mb-6">{t.admin.loginSubtitle}</p>
+        {import.meta.env.DEV && (
+          <p className="text-[11px] text-muted-foreground mb-4 font-mono break-all">API : {API_URL}</p>
+        )}
         <form onSubmit={onSubmit} className="space-y-4">
           <label className="block">
             <span className="block text-xs font-semibold text-foreground/80 mb-1.5">{t.admin.email}</span>
@@ -124,7 +126,11 @@ function Login() {
               className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </label>
-          {error && <div className="text-sm text-destructive">{error}</div>}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-3">
+              {error}
+            </div>
+          )}
           <button
             type="submit"
             disabled={submitting}
@@ -138,16 +144,17 @@ function Login() {
   );
 }
 
-type Tab = "metrics" | "registrations" | "visas" | "payments" | "reviews" | "contacts";
+type Tab = "metrics" | "registrations" | "departures" | "videos" | "payments" | "reviews" | "contacts";
 
-function Dashboard() {
+function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   const { t } = useLang();
   const [tab, setTab] = useState<Tab>("metrics");
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "metrics", label: t.admin.tabMetrics },
     { key: "registrations", label: t.admin.tabRegistrations },
-    { key: "visas", label: t.admin.tabVisas },
+    { key: "departures", label: "Départs" },
+    { key: "videos", label: "Vidéos" },
     { key: "payments", label: t.admin.tabPayments },
     { key: "reviews", label: t.admin.tabReviews },
     { key: "contacts", label: t.admin.tabContacts },
@@ -158,10 +165,7 @@ function Dashboard() {
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="container mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
           <h1 className="font-display text-xl font-semibold text-primary">{t.admin.dashboardTitle}</h1>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
+          <button onClick={onSignOut} className="text-sm text-muted-foreground hover:text-foreground">
             {t.admin.signOut}
           </button>
         </div>
@@ -185,7 +189,8 @@ function Dashboard() {
       <main className="container mx-auto px-4 lg:px-8 py-8">
         {tab === "metrics" && <Metrics />}
         {tab === "registrations" && <Registrations />}
-        {tab === "visas" && <VisaRequests />}
+        {tab === "departures" && <DeparturesAdmin />}
+        {tab === "videos" && <VideosAdmin />}
         {tab === "payments" && <Payments />}
         {tab === "reviews" && <ReviewsModeration />}
         {tab === "contacts" && <Contacts />}
@@ -205,29 +210,30 @@ function Card({ title, value }: { title: string; value: string | number }) {
 
 function Metrics() {
   const { t, lang } = useLang();
-  const [regs, setRegs] = useState<{ payment_status: string; departure_date: string | null; created_at: string }[]>([]);
-  const [visas, setVisas] = useState<number>(0);
+  const [regs, setRegs] = useState<RegistrationIndexRow[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [{ data: r }, { count: v }] = await Promise.all([
-        supabase.from("registrations").select("payment_status, departure_date, created_at"),
-        supabase.from("visa_requests").select("*", { count: "exact", head: true }),
+      const token = getToken();
+      if (!token) return;
+      const [regsResult, statsResult] = await Promise.allSettled([
+        fetchRegistrations(token),
+        fetchStats(token),
       ]);
-      setRegs(r || []);
-      setVisas(v || 0);
+      if (regsResult.status === "fulfilled") setRegs(regsResult.value);
+      else console.error(regsResult.reason);
+      if (statsResult.status === "fulfilled") setStats(statsResult.value);
+      else console.error(statsResult.reason);
     })();
   }, []);
-
-  const total = regs.length;
-  const paid = regs.filter((r) => r.payment_status === "paid").length;
-  const pending = regs.filter((r) => r.payment_status !== "paid").length;
 
   const byMonth = useMemo(() => {
     const map = new Map<string, number>();
     regs.forEach((r) => {
       if (!r.departure_date) return;
       const d = new Date(r.departure_date);
+      if (Number.isNaN(d.getTime())) return;
       const key = d.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { year: "numeric", month: "long" });
       map.set(key, (map.get(key) || 0) + 1);
     });
@@ -239,10 +245,13 @@ function Metrics() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card title={t.admin.metricsTotal} value={total} />
-        <Card title={t.admin.metricsPaid} value={paid} />
-        <Card title={t.admin.metricsPending} value={pending} />
-        <Card title={t.admin.metricsVisas} value={visas} />
+        <Card title={t.admin.metricsTotal} value={regs.length} />
+        <Card title={t.admin.metricsPaid} value={stats?.payments_confirmed ?? "—"} />
+        <Card
+          title={t.admin.metricsPending}
+          value={stats ? Math.max(stats.payments_total - stats.payments_confirmed, 0) : "—"}
+        />
+        <Card title="Avis à valider" value={stats?.reviews_pending ?? "—"} />
       </div>
 
       <div className="bg-card border border-border rounded-2xl p-6 shadow-soft">
@@ -258,10 +267,7 @@ function Metrics() {
                   <span className="font-semibold text-primary">{n}</span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-primary rounded-full"
-                    style={{ width: `${(n / max) * 100}%` }}
-                  />
+                  <div className="h-full bg-gradient-primary rounded-full" style={{ width: `${(n / max) * 100}%` }} />
                 </div>
               </div>
             ))}
@@ -272,42 +278,35 @@ function Metrics() {
   );
 }
 
-interface Reg {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  whatsapp: string | null;
-  service_type: string;
-  departure_date: string | null;
-  payment_status: string;
-  status: string;
-  passport_path: string | null;
-  created_at: string;
-}
-
 function Registrations() {
   const { t } = useLang();
-  const [rows, setRows] = useState<Reg[]>([]);
+  const [rows, setRows] = useState<RegistrationIndexRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("registrations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      setRows((data as Reg[]) || []);
-      setLoading(false);
+      try {
+        // Les inscriptions ne sont plus en base : elles vivent dans Google Drive
+        // (un dossier par pelerin) et sont indexees dans une Google Sheet, lue ici
+        // via l'API FastAPI. Le token Supabase de l'admin sert a autoriser l'appel.
+        setRows(await fetchRegistrations(requireToken()));
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
-  const viewPassport = async (path: string) => {
-    const { data } = await supabase.storage.from("passports").createSignedUrl(path, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-  };
-
   if (loading) return <p className="text-muted-foreground">{t.common.loading}</p>;
+  if (error)
+    return (
+      <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-4">
+        {error}
+      </div>
+    );
   if (rows.length === 0) return <p className="text-muted-foreground italic">{t.admin.noData}</p>;
 
   return (
@@ -320,32 +319,33 @@ function Registrations() {
               <Th>Nom</Th>
               <Th>Contact</Th>
               <Th>Service</Th>
-              <Th>Départ</Th>
-              <Th>Paiement</Th>
-              <Th>Passeport</Th>
+              <Th>Depart</Th>
+              <Th>Dossier</Th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border">
-                <Td>{new Date(r.created_at).toLocaleDateString()}</Td>
+              <tr key={r.registration_id} className="border-t border-border">
+                <Td>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "\u2014"}</Td>
                 <Td>{r.full_name}</Td>
                 <Td>
                   <div>{r.email}</div>
                   <div className="text-xs text-muted-foreground">{r.phone}</div>
                 </Td>
                 <Td>{r.service_type}</Td>
-                <Td>{r.departure_date || "—"}</Td>
+                <Td>{r.departure_date || "\u2014"}</Td>
                 <Td>
-                  <Badge ok={r.payment_status === "paid"}>{r.payment_status}</Badge>
-                </Td>
-                <Td>
-                  {r.passport_path ? (
-                    <button onClick={() => viewPassport(r.passport_path!)} className="text-primary underline text-xs">
+                  {r.drive_folder_link ? (
+                    <a
+                      href={r.drive_folder_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline text-xs"
+                    >
                       {t.admin.viewPassport}
-                    </button>
+                    </a>
                   ) : (
-                    "—"
+                    "\u2014"
                   )}
                 </Td>
               </tr>
@@ -355,114 +355,39 @@ function Registrations() {
       </div>
     </div>
   );
-}
-
-interface Visa {
-  id: string;
-  full_name: string;
-  email: string;
-  whatsapp: string;
-  desired_departure_date: string;
-  status: string;
-  payment_status: string;
-  passport_path: string | null;
-  created_at: string;
-}
-
-function VisaRequests() {
-  const { t } = useLang();
-  const [rows, setRows] = useState<Visa[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("visa_requests").select("*").order("created_at", { ascending: false });
-      setRows((data as Visa[]) || []);
-      setLoading(false);
-    })();
-  }, []);
-  const viewPassport = async (path: string) => {
-    const { data } = await supabase.storage.from("passports").createSignedUrl(path, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-  };
-  if (loading) return <p className="text-muted-foreground">{t.common.loading}</p>;
-  if (rows.length === 0) return <p className="text-muted-foreground italic">{t.admin.noData}</p>;
-  return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted">
-            <tr>
-              <Th>Date</Th>
-              <Th>Nom</Th>
-              <Th>Contact</Th>
-              <Th>Départ</Th>
-              <Th>Statut</Th>
-              <Th>Passeport</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border">
-                <Td>{new Date(r.created_at).toLocaleDateString()}</Td>
-                <Td>{r.full_name}</Td>
-                <Td>
-                  <div>{r.email}</div>
-                  <div className="text-xs text-muted-foreground">{r.whatsapp}</div>
-                </Td>
-                <Td>{r.desired_departure_date}</Td>
-                <Td>
-                  <Badge ok={r.status === "approved"}>{r.status}</Badge>
-                </Td>
-                <Td>
-                  {r.passport_path ? (
-                    <button onClick={() => viewPassport(r.passport_path!)} className="text-primary underline text-xs">
-                      {t.admin.viewPassport}
-                    </button>
-                  ) : (
-                    "—"
-                  )}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-interface Payment {
-  id: string;
-  payer_name: string;
-  payer_phone: string;
-  amount: number | null;
-  currency: string;
-  method: string;
-  status: string;
-  reference: string | null;
-  installment_type: string;
-  created_at: string;
 }
 
 function Payments() {
   const { t } = useLang();
   const [rows, setRows] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("payments").select("*").order("created_at", { ascending: false });
-      setRows((data as Payment[]) || []);
-      setLoading(false);
+      try {
+        setRows(await fetchPayments(requireToken()));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
   const confirm = async (id: string) => {
-    await supabase.from("payments").update({ status: "confirmed" }).eq("id", id);
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status: "confirmed" } : r)));
+    try {
+      await confirmPayment(requireToken(), id);
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status: "confirmed" } : r)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   if (loading) return <p className="text-muted-foreground">{t.common.loading}</p>;
+  if (error) return <ErrorBox msg={error} />;
   if (rows.length === 0) return <p className="text-muted-foreground italic">{t.admin.noData}</p>;
+
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
       <div className="overflow-x-auto">
@@ -513,38 +438,47 @@ function Payments() {
   );
 }
 
-interface Rev {
-  id: string;
-  author_name: string;
-  rating: number;
-  comment: string;
-  approved: boolean;
-  service_type: string | null;
-  travel_period: string | null;
-  created_at: string;
-}
-
 function ReviewsModeration() {
   const { t } = useLang();
-  const [rows, setRows] = useState<Rev[]>([]);
+  const [rows, setRows] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
-      setRows((data as Rev[]) || []);
-      setLoading(false);
+      try {
+        setRows(await fetchAllReviews(requireToken()));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
+
   const approve = async (id: string) => {
-    await supabase.from("reviews").update({ approved: true }).eq("id", id);
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, approved: true } : r)));
+    try {
+      await approveReview(requireToken(), id);
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, approved: true } : r)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
+
   const reject = async (id: string) => {
-    await supabase.from("reviews").delete().eq("id", id);
-    setRows((rs) => rs.filter((r) => r.id !== id));
+    if (!window.confirm("Supprimer cet avis ?")) return;
+    try {
+      await removeReview(requireToken(), id);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
+
   if (loading) return <p className="text-muted-foreground">{t.common.loading}</p>;
+  if (error) return <ErrorBox msg={error} />;
   if (rows.length === 0) return <p className="text-muted-foreground italic">{t.admin.noData}</p>;
+
   return (
     <div className="space-y-4">
       {rows.map((r) => (
@@ -554,7 +488,7 @@ function ReviewsModeration() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-semibold text-foreground">{r.author_name}</span>
                 <span className="text-gold text-sm">{"★".repeat(r.rating)}</span>
-                <Badge ok={r.approved}>{r.approved ? "approved" : "pending"}</Badge>
+                <Badge ok={r.approved}>{r.approved ? "approuvé" : "en attente"}</Badge>
               </div>
               <p className="text-sm text-foreground italic">"{r.comment}"</p>
               <div className="text-xs text-muted-foreground mt-2">
@@ -563,11 +497,17 @@ function ReviewsModeration() {
             </div>
             <div className="flex flex-col gap-2 shrink-0">
               {!r.approved && (
-                <button onClick={() => approve(r.id)} className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full">
+                <button
+                  onClick={() => approve(r.id)}
+                  className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full"
+                >
                   {t.admin.approve}
                 </button>
               )}
-              <button onClick={() => reject(r.id)} className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full">
+              <button
+                onClick={() => reject(r.id)}
+                className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
+              >
                 {t.admin.reject}
               </button>
             </div>
@@ -578,29 +518,28 @@ function ReviewsModeration() {
   );
 }
 
-interface Msg {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-  subject: string | null;
-  message: string;
-  created_at: string;
-}
-
 function Contacts() {
   const { t } = useLang();
-  const [rows, setRows] = useState<Msg[]>([]);
+  const [rows, setRows] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("contact_messages").select("*").order("created_at", { ascending: false });
-      setRows((data as Msg[]) || []);
-      setLoading(false);
+      try {
+        setRows(await fetchContactMessages(requireToken()));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
+
   if (loading) return <p className="text-muted-foreground">{t.common.loading}</p>;
+  if (error) return <ErrorBox msg={error} />;
   if (rows.length === 0) return <p className="text-muted-foreground italic">{t.admin.noData}</p>;
+
   return (
     <div className="space-y-3">
       {rows.map((m) => (
@@ -620,6 +559,12 @@ function Contacts() {
   );
 }
 
+function ErrorBox({ msg }: { msg: string }) {
+  return (
+    <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-4">{msg}</div>
+  );
+}
+
 function Th({ children }: { children?: React.ReactNode }) {
   return <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{children}</th>;
 }
@@ -631,5 +576,288 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
       {children}
     </span>
+  );
+}
+
+/** Jeton de session admin pour les appels API protégés. */
+const adminToken = async (): Promise<string> => requireToken();
+
+function DeparturesAdmin() {
+  const { t, lang } = useLang();
+  const [rows, setRows] = useState<Departure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [date, setDate] = useState("");
+  const [label, setLabel] = useState("");
+  const [seats, setSeats] = useState("20");
+
+  const load = async () => {
+    try {
+      setRows(await fetchDepartures());
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await adminToken();
+      await createDeparture(token, {
+        date,
+        package_label: label.trim(),
+        seats: Number(seats) || 0,
+      });
+      setDate("");
+      setLabel("");
+      setSeats("20");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Supprimer cette date de départ ?")) return;
+    try {
+      await deleteDeparture(await adminToken(), id);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime())
+      ? iso
+      : d.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={add} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
+        <h3 className="font-display text-lg font-semibold text-foreground">Ajouter une date de départ</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <label className="block sm:col-span-1">
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Date *</span>
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Forfait *</span>
+            <input
+              required
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Omra Confort"
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="block sm:col-span-1">
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Places</span>
+            <input
+              type="number"
+              min={0}
+              value={seats}
+              onChange={(e) => setSeats(e.target.value)}
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+            />
+          </label>
+        </div>
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-3">
+            {error}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
+        >
+          {saving ? "..." : "Ajouter"}
+        </button>
+      </form>
+
+      {loading ? (
+        <p className="text-muted-foreground">{t.common.loading}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground italic">{t.admin.noData}</p>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <Th>Date</Th>
+                  <Th>Forfait</Th>
+                  <Th>Places</Th>
+                  <Th />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-t border-border">
+                    <Td className="capitalize">{fmt(r.date)}</Td>
+                    <Td>{r.package_label}</Td>
+                    <Td>{r.seats}</Td>
+                    <Td>
+                      <button
+                        onClick={() => remove(r.id)}
+                        className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full"
+                      >
+                        Supprimer
+                      </button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideosAdmin() {
+  const { t } = useLang();
+  const [rows, setRows] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+
+  const load = async () => {
+    try {
+      setRows(await fetchVideos());
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      await uploadVideo(await adminToken(), title.trim() || file.name, file);
+      setTitle("");
+      setFile(null);
+      (e.target as HTMLFormElement).reset();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Supprimer cette vidéo ? Le fichier sera effacé définitivement.")) return;
+    try {
+      await deleteVideo(await adminToken(), id);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 shadow-soft space-y-4">
+        <h3 className="font-display text-lg font-semibold text-foreground">Ajouter une vidéo</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Titre</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Omra décembre 2026"
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-semibold text-foreground/80 mb-1.5">Fichier vidéo *</span>
+            <input
+              type="file"
+              required
+              accept="video/mp4,video/quicktime,video/webm"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground">MP4, MOV ou WEBM — 200 Mo maximum.</p>
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl p-3">
+            {error}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={uploading || !file}
+          className="bg-gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-60"
+        >
+          {uploading ? "Envoi en cours…" : "Publier"}
+        </button>
+      </form>
+
+      {loading ? (
+        <p className="text-muted-foreground">{t.common.loading}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground italic">{t.admin.noData}</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {rows.map((v) => (
+            <div key={v.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-soft">
+              <div className="aspect-video bg-foreground/5">
+                <iframe src={v.embed_url} title={v.title} className="w-full h-full border-0" loading="lazy" />
+              </div>
+              <div className="p-4 flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-foreground truncate">{v.title}</span>
+                <button
+                  onClick={() => remove(v.id)}
+                  className="text-xs bg-destructive/10 text-destructive px-3 py-1.5 rounded-full shrink-0"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

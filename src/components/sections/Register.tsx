@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useLang } from "@/i18n/LangContext";
 import { SectionHeading } from "./SectionHeading";
-import { supabase } from "@/integrations/supabase/client";
+import { submitRegistration } from "@/lib/api";
 import { AlertTriangle, Upload } from "lucide-react";
 
 const schema = z.object({
@@ -96,43 +96,24 @@ export function Register() {
 
     setSubmitting(true);
     try {
-      let passportPath: string | null = null;
-      if (passportFile) {
-        const ext = passportFile.name.split(".").pop() || "bin";
-        const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const path = `registrations/${safeName}`;
-        const { error: upErr } = await supabase.storage
-          .from("passports")
-          .upload(path, passportFile, { contentType: passportFile.type, upsert: false });
-        if (upErr) {
-          console.warn("passport upload failed", upErr);
-        } else {
-          passportPath = path;
-        }
-      }
-
-      const payload = {
-        full_name: parsed.data.full_name,
-        email: parsed.data.email,
-        phone: parsed.data.phone,
-        whatsapp: parsed.data.whatsapp || null,
-        country: parsed.data.country || null,
-        city: parsed.data.city || null,
-        service_type: parsed.data.service_type,
-        departure_date: parsed.data.departure_date || null,
-        notes: parsed.data.notes || null,
-        passport_valid_6_months: passportOk,
-        passport_path: passportPath,
-        language: lang,
-      };
-      const { error: insertError } = await supabase.from("registrations").insert(payload);
-      if (insertError) throw insertError;
-
-      try {
-        await supabase.functions.invoke("notify-registration", { body: payload });
-      } catch {
-        /* ignore */
-      }
+      // L'API FastAPI cree le dossier Drive du pelerin (fiche + passeport),
+      // l'ajoute a la feuille d'index et notifie l'agence par e-mail.
+      await submitRegistration(
+        {
+          full_name: parsed.data.full_name,
+          email: parsed.data.email,
+          phone: parsed.data.phone,
+          whatsapp: parsed.data.whatsapp,
+          country: parsed.data.country,
+          city: parsed.data.city,
+          service_type: parsed.data.service_type,
+          departure_date: parsed.data.departure_date,
+          notes: parsed.data.notes,
+          passport_valid_6_months: passportOk,
+          language: lang,
+        },
+        passportFile,
+      );
 
       setDone(true);
       (e.target as HTMLFormElement).reset();

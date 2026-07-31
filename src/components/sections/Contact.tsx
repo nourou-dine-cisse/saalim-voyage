@@ -3,7 +3,7 @@ import { Phone, Mail, MapPin, MessageCircle, Send, Instagram } from "lucide-reac
 import { z } from "zod";
 import { SectionHeading } from "./SectionHeading";
 import { useLang } from "@/i18n/LangContext";
-import { supabase } from "@/integrations/supabase/client";
+import { sendContactMessage } from "@/lib/api";
 
 const PHONE = "+221789922020";
 const EMAIL = "saalimvoyages@gmail.com";
@@ -37,18 +37,20 @@ export function Contact() {
       return;
     }
     setSubmitting(true);
-    const { error: err } = await supabase.from("contact_messages").insert({
-      ...parsed.data,
-      subject: parsed.data.subject || null,
-      language: lang,
-    });
-    setSubmitting(false);
-    if (err) {
+    try {
+      await sendContactMessage({
+        ...parsed.data,
+        subject: parsed.data.subject || null,
+        language: lang,
+      });
+      setDone(true);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      console.error(err);
       setError(t.register.error);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-    setDone(true);
-    (e.target as HTMLFormElement).reset();
   };
 
   // Minimal QR codes via free chart API

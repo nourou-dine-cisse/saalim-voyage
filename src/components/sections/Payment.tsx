@@ -2,7 +2,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { SectionHeading } from "./SectionHeading";
 import { useLang } from "@/i18n/LangContext";
-import { supabase } from "@/integrations/supabase/client";
+import { declarePayment } from "@/lib/api";
 import qrWave from "@/assets/qr-wave.jpg";
 import qrOrange from "@/assets/qr-orange.jpg";
 import { Shield, MessageCircle } from "lucide-react";
@@ -45,17 +45,15 @@ export function Payment() {
     }
     setSubmitting(true);
     try {
-      const { error: insErr } = await supabase.from("payments").insert({
+      await declarePayment({
         payer_name: parsed.data.payer_name,
         payer_phone: parsed.data.payer_phone,
         amount: parsed.data.amount ?? null,
-        currency: "XOF",
         method,
         installment_type: installment,
         reference: parsed.data.reference || null,
         notes: parsed.data.notes || null,
       });
-      if (insErr) throw insErr;
       setLastPayer(parsed.data.payer_name);
       setLastAmount(parsed.data.amount ? String(parsed.data.amount) : "");
       setDone(true);

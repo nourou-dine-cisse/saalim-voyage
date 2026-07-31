@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { SectionHeading } from "./SectionHeading";
 import { useLang } from "@/i18n/LangContext";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchPublicReviews, submitReview } from "@/lib/api";
 import { z } from "zod";
 
 interface Review {
@@ -36,14 +36,13 @@ export function Reviews() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("reviews")
-        .select("id, author_name, rating, comment, service_type, travel_period, created_at")
-        .eq("approved", true)
-        .order("created_at", { ascending: false })
-        .limit(3);
-      setReviews((data as Review[]) || []);
-      setLoading(false);
+      try {
+        setReviews(await fetchPublicReviews(3));
+      } catch (err) {
+        console.error("chargement des avis impossible", err);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -66,16 +65,14 @@ export function Reviews() {
     }
     setSubmitting(true);
     try {
-      const { error: insErr } = await supabase.from("reviews").insert({
+      await submitReview({
         author_name: parsed.data.author_name,
         email: parsed.data.email || null,
         rating: parsed.data.rating,
         comment: parsed.data.comment,
         service_type: parsed.data.service_type || null,
         travel_period: parsed.data.travel_period || null,
-        approved: false,
       });
-      if (insErr) throw insErr;
       setDone(true);
       (e.target as HTMLFormElement).reset();
       setRating(5);

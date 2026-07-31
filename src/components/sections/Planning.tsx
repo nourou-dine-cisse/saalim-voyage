@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionHeading } from "./SectionHeading";
 import { useLang, toHijri } from "@/i18n/LangContext";
 import { Calendar } from "lucide-react";
+import { fetchDepartures, type Departure as ApiDeparture } from "@/lib/api";
 
 interface Departure {
   date: Date;
@@ -9,23 +10,32 @@ interface Departure {
   seats: number;
 }
 
-function buildDepartures(): Departure[] {
-  const today = new Date();
-  const list: Departure[] = [];
-  const labels = ["Omra Économique", "Omra Confort", "Omra Premium"];
-  for (let i = 1; i <= 8; i++) {
-    const d = new Date(today);
-    d.setMonth(d.getMonth() + i);
-    d.setDate(5 + (i % 20));
-    list.push({ date: d, pkg: labels[i % 3], seats: 5 + ((i * 7) % 25) });
-  }
-  return list;
-}
-
 export function Planning() {
   const { t, lang } = useLang();
-  const departures = useMemo(buildDepartures, []);
+  const [apiDepartures, setApiDepartures] = useState<ApiDeparture[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+
+  // Les dates sont gerees depuis la page admin (API -> Google Sheets).
+  useEffect(() => {
+    (async () => {
+      try {
+        setApiDepartures(await fetchDepartures());
+      } catch (err) {
+        console.error("chargement des departs impossible", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const departures = useMemo<Departure[]>(
+    () =>
+      apiDepartures
+        .map((d) => ({ date: new Date(d.date), pkg: d.package_label, seats: d.seats }))
+        .filter((d) => !Number.isNaN(d.date.getTime())),
+    [apiDepartures],
+  );
 
   const fmt = (d: Date) =>
     d.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
@@ -40,6 +50,11 @@ export function Planning() {
       <div className="container mx-auto px-4 lg:px-8">
         <SectionHeading title={t.planning.title} subtitle={t.planning.subtitle} />
 
+        {loading ? (
+          <p className="mt-16 text-center text-muted-foreground">{t.common.loading}</p>
+        ) : departures.length === 0 ? (
+          <p className="mt-16 text-center text-muted-foreground italic">{t.planning.subtitle}</p>
+        ) : (
         <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
           {departures.map((dep, i) => {
             const isSelected = selected === i;
@@ -73,6 +88,7 @@ export function Planning() {
             );
           })}
         </div>
+        )}
 
         {selected !== null && (
           <div className="mt-8 text-center animate-float-up">

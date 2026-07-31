@@ -39,3 +39,17 @@ dist-ssr
 .env.*
 !.env.example
 wrangler.jsonc
+
+# Python (API FastAPI)
+.venv/
+__pycache__/
+*.pyc
+
+# Base SQLite locale (donnees reelles, ne jamais committer)
+api/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Identifiants OAuth Google
+api/scripts/client_secret.json
