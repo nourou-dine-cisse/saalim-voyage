@@ -1,13 +1,20 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, cloudflare (build-only, disabled below),
-//     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
-//     error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... } }) if needed.
+// @lovable.dev/vite-tanstack-config inclut déjà : tanstackStart, viteReact, tailwindcss,
+// tsConfigPaths, componentTagger (dev), injection des VITE_*, alias @, dédupe React.
+// Ne pas les rajouter manuellement (plugins dupliqués = app cassée).
 //
-// Deployment target: Vercel (Cloudflare Workers plugin disabled — see roadmap doc).
+// Déploiement : Vercel, en mode SPA.
+// Le site n'a besoin d'aucun rendu serveur (tout le contenu vient de l'API FastAPI
+// côté client) : le build produit une coquille HTML statique + les assets, servie
+// par Vercel comme un site statique classique. Cela évite d'avoir à héberger un
+// serveur Node pour le frontend.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   cloudflare: false,
+  tanstackStart: {
+    spa: {
+      enabled: true,
+      prerender: { outputPath: "/index.html" },
+    },
+  },
 });
