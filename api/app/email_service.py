@@ -27,12 +27,20 @@ def _send(subject: str, body: str) -> None:
     msg["To"] = settings.admin_notification_email
     msg.set_content(body)
 
-    # timeout explicite : evite un blocage indefini si le port SMTP est filtre
-    # par le reseau (firewall qui jette les paquets au lieu de les refuser).
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-        server.starttls()
-        server.login(settings.smtp_username, settings.smtp_password)
-        server.send_message(msg)
+    # Deux protocoles selon le port :
+    #  - 465 : SSL des la connexion (SMTP_SSL)
+    #  - 587 (et autres) : connexion claire puis passage en TLS (STARTTLS)
+    # Le timeout explicite evite un blocage indefini si le port est filtre par
+    # l'hebergeur, qui jette les paquets au lieu de refuser la connexion.
+    if settings.smtp_port == 465:
+        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+            server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+            server.starttls()
+            server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(msg)
 
 
 def notify_admin(subject: str, body: str) -> None:
