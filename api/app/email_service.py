@@ -59,6 +59,10 @@ def _send_via_resend(subject: str, body: str) -> None:
         headers={
             "Authorization": f"Bearer {settings.resend_api_key}",
             "Content-Type": "application/json",
+            # Sans User-Agent explicite, urllib s'annonce "Python-urllib/3.x",
+            # signature que le Cloudflare de Resend rejette (erreur 1010).
+            "User-Agent": "SaalimVoyages/1.0 (+https://saalimvoyages.com)",
+            "Accept": "application/json",
         },
         method="POST",
     )
