@@ -171,6 +171,7 @@ def create_registration(reg, drive_folder_link: str | None) -> str:
 
 
 def list_registrations_db() -> list[RegistrationRow]:
+    """Relecture de la copie de secours (l'admin lit la Google Sheet, pas ceci)."""
     with connect() as conn:
         rows = conn.execute("SELECT * FROM registrations ORDER BY created_at DESC").fetchall()
     out = []
@@ -179,11 +180,6 @@ def list_registrations_db() -> list[RegistrationRow]:
         d["passport_valid_6_months"] = bool(d["passport_valid_6_months"])
         out.append(RegistrationRow(**d))
     return out
-
-
-def count_registrations() -> int:
-    with connect() as conn:
-        return conn.execute("SELECT COUNT(*) c FROM registrations").fetchone()["c"]
 
 
 # --- Forfaits -------------------------------------------------------------

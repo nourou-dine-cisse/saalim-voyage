@@ -1,15 +1,16 @@
 """
-Index leger (Google Sheets) : les inscriptions, les dates de depart et les videos
-vivent chacune dans un onglet de la meme feuille. Les onglets manquants sont crees
-automatiquement au premier usage, pour eviter toute manipulation manuelle.
+Index Google Sheets des inscriptions : c'est la source affichee dans l'admin,
+et elle reste consultable directement dans Drive. L'onglet manquant est cree
+automatiquement au premier usage.
+
+(Departs, forfaits, lieux et videos vivent en SQLite — voir store.py.)
 """
-import uuid
 from datetime import datetime, timezone
 from typing import Iterable
 
 from .config import get_settings
 from .google_clients import get_sheets_client
-from .schemas import Departure, RegistrationCreate, RegistrationIndexRow
+from .schemas import RegistrationCreate, RegistrationIndexRow
 
 REGISTRATIONS_HEADER = [
     "registration_id",
@@ -22,17 +23,10 @@ REGISTRATIONS_HEADER = [
     "drive_folder_link",
 ]
 
-DEPARTURES_TAB = "Departs"
-DEPARTURES_HEADER = ["id", "created_at", "date", "package_label", "seats"]
-
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _new_id() -> str:
-    return uuid.uuid4().hex
 
 
 def _spreadsheet_id() -> str:
@@ -102,38 +96,6 @@ def _read(tab: str, header: list[str]) -> list[list[str]]:
     return [row + [""] * (len(header) - len(row)) for row in rows]
 
 
-def _delete_by_id(tab: str, header: list[str], target_id: str) -> bool:
-    """Supprime la ligne dont la colonne A vaut target_id. Retourne True si trouvee."""
-    sheet_id = ensure_tab(tab, header)
-    rows = _read(tab, header)
-    for index, row in enumerate(rows):
-        if row[0] == target_id:
-            # +1 pour la ligne d'en-tete, l'API utilise un index 0-base sur les lignes.
-            start = index + 1
-            get_sheets_client().spreadsheets().batchUpdate(
-                spreadsheetId=_spreadsheet_id(),
-                body={
-                    "requests": [
-                        {
-                            "deleteDimension": {
-                                "range": {
-                                    "sheetId": sheet_id,
-                                    "dimension": "ROWS",
-                                    "startIndex": start,
-                                    "endIndex": start + 1,
-                                }
-                            }
-                        }
-                    ]
-                },
-            ).execute()
-            return True
-    return False
-
-
-# --- Inscriptions ---------------------------------------------------------
-
-
 def append_registration_row(registration_id: str, reg: RegistrationCreate, drive_folder_link: str) -> None:
     _append(
         get_settings().registrations_index_sheet_tab,
@@ -167,30 +129,3 @@ def list_registrations() -> list[RegistrationIndexRow]:
         for r in rows
     ]
     return list(reversed(out))  # les plus recentes en premier
-
-
-# --- Dates de depart ------------------------------------------------------
-
-
-def add_departure(date: str, package_label: str, seats: int) -> Departure:
-    new = Departure(id=_new_id(), created_at=_now(), date=date, package_label=package_label, seats=seats)
-    _append(DEPARTURES_TAB, DEPARTURES_HEADER, [new.id, new.created_at, new.date, new.package_label, str(new.seats)])
-    return new
-
-
-def list_departures() -> list[Departure]:
-    out: list[Departure] = []
-    for r in _read(DEPARTURES_TAB, DEPARTURES_HEADER):
-        if not r[0]:
-            continue
-        try:
-            seats = int(r[4] or 0)
-        except ValueError:
-            seats = 0
-        out.append(Departure(id=r[0], created_at=r[1], date=r[2], package_label=r[3], seats=seats))
-    # tri chronologique, les departs les plus proches en premier
-    return sorted(out, key=lambda d: d.date)
-
-
-def delete_departure(departure_id: str) -> bool:
-    return _delete_by_id(DEPARTURES_TAB, DEPARTURES_HEADER, departure_id)
