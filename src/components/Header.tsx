@@ -45,7 +45,7 @@ export function Header() {
             {/*<span className="text-primary-foreground font-display font-bold text-lg">S</span>*/}
             <img
               src={logo}
-              alt="Saalim Voyages"
+              alt="Saalim Voyages — Oumra & Hajj Sénégal"
               className="w-10 h-10 rounded-full object-cover shadow-soft group-hover:shadow-elegant transition-all"
             />
           </div>

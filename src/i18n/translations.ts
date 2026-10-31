@@ -18,20 +18,58 @@ export const translations = {
       admin: "Espace admin",
     },
     hero: {
-      eyebrow: "Saalim Voyages — Agence agréée Omra & Hajj",
-      title: "Vivez votre voyage sacré avec une aventure spirituelle en toute confiance",
+      eyebrow: "Saalim Voyages — Agence Agréée Oumra Sénégal & Hajj",
+      title: "Oumra Sénégal : Vivez votre voyage sacré avec sérénité et confiance",
       subtitle:
-        "Depuis Dakar, nous accompagnons les pèlerins du Sénégal, d'Afrique, d'Europe et du monde entier vers les Lieux Saints, avec rigueur, douceur et conformité.",
-      ctaPrimary: "Réserver mon Omra",
+        "Depuis Dakar et Kaolack, nous accompagnons les pèlerins du Sénégal et de la diaspora vers La Mecque et Médine, avec rigueur, confort et conformité islamique.",
+      ctaPrimary: "Réserver mon Oumra",
       ctaSecondary: "Voir le calendrier",
       // Each rotating item has a label, a section anchor, and a paired CTA shown next to it.
       rotating: [
-        { label: "Forfait Omra", anchor: "packages", cta: "Voir le calendrier", ctaAnchor: "planning" },
-        { label: "Forfait Hajj", anchor: "packages", cta: "Voir le calendrier", ctaAnchor: "planning" },
-        { label: "Demande de Visa", anchor: "services", cta: "Démarrer ma demande", ctaAnchor: "register" },
-        { label: "Billet d'avion seul", anchor: "services", cta: "Réserver mon vol", ctaAnchor: "register" },
+        { label: "Forfait Oumra Sénégal", anchor: "packages", cta: "Voir les formules", ctaAnchor: "planning" },
+        { label: "Forfait Hajj Sénégal", anchor: "packages", cta: "Voir le calendrier", ctaAnchor: "planning" },
+        { label: "Visa Oumra Express", anchor: "services", cta: "Démarrer ma demande", ctaAnchor: "register" },
+        { label: "Billet d'avion Dakar–Djeddah", anchor: "services", cta: "Réserver mon vol", ctaAnchor: "register" },
         { label: "Tontine Oumra (sans riba)", anchor: "services", cta: "M'inscrire à la tontine", ctaAnchor: "register" },
         { label: "Paiement Wave & Orange Money", anchor: "payment", cta: "Comment payer", ctaAnchor: "payment" },
+      ],
+    },
+    oumraSenegal: {
+      tag: "Votre Agence au Sénégal",
+      title: "Oumra Sénégal : Votre Pèlerinage à La Mecque depuis Dakar",
+      subtitle:
+        "Saalim Voyages est votre agence de référence au Sénégal pour organiser votre Oumra et votre Hajj en toute confiance et tranquillité d'esprit.",
+      features: [
+        {
+          title: "Vols directs & assistés depuis Dakar (AIBD)",
+          desc: "Départs réguliers depuis l'Aéroport International Blaise Diagne (DSS) vers Djeddah et Médine avec assistance complète à l'embarquement et à l'arrivée.",
+        },
+        {
+          title: "Hôtels sélectionnés proches du Haram",
+          desc: "Hébergements de standing situés à quelques minutes de marche de la Kaaba (Masjid al-Haram) et de la Mosquée du Prophète (ﷺ).",
+        },
+        {
+          title: "Guides religieux sénégalais expérimentés",
+          desc: "Encadrement spirituel permanent en wolof et français pour vous guider pas à pas dans les rites et les visites pieuses (Ziyarat).",
+        },
+        {
+          title: "Tontine Oumra 100% Halal sans Riba",
+          desc: "Facilité d'épargne mensuelle exclusive sans aucun intérêt ni frais cachés, pour permettre à chaque croyant de financer son pèlerinage.",
+        },
+        {
+          title: "Traitement express du Visa Oumra",
+          desc: "Prise en charge intégrale de l'obtention du visa saoudien et de l'assurance voyage obligatoire pour les pèlerins sénégalais.",
+        },
+        {
+          title: "Proximité locale à Dakar & Kaolack",
+          desc: "Agences physiques à Dakar (Sacré-Cœur 3) et Kaolack (Médina Baye) pour vous accueillir, vous conseiller et finaliser vos démarches.",
+        },
+      ],
+      stats: [
+        { value: "+2 500", label: "Pèlerins accompagnés" },
+        { value: "100%", label: "Conformité religieuse" },
+        { value: "24h/7j", label: "Assistance sur place" },
+        { value: "4.9/5", label: "Note de satisfaction" },
       ],
     },
     packages: {
@@ -263,13 +301,32 @@ export const translations = {
       placeholder: "Vidéo à venir",
     },
     faq: {
-      title: "Questions fréquentes",
+      title: "Questions fréquentes sur l'Oumra au Sénégal",
       items: [
-        { q: "Combien de temps avant le départ dois-je m'inscrire ?", a: "Nous recommandons au moins 8 semaines avant la date de départ pour le visa et la préparation." },
-        { q: "Mon passeport doit-il être valide ?", a: "Oui, il doit être valide au moins 6 mois après la date de retour. Nous vérifions cela lors de l'inscription." },
-        { q: "Puis-je payer en plusieurs fois ?", a: "Oui, via la tontine Saalim ou un échéancier personnalisé, sans intérêts. Voir la section Paiement." },
-        { q: "Quels moyens de paiement acceptez-vous ?", a: "Wave et Orange Money (codes marchands), virement bancaire et tontine Saalim." },
-        { q: "Le visa est-il garanti ?", a: "L'octroi du visa relève des autorités saoudiennes. Nous garantissons un dossier complet et conforme, mais ne pouvons pas garantir l'accord." },
+        {
+          q: "Comment faire une Oumra depuis le Sénégal avec Saalim Voyages ?",
+          a: "Pour réaliser votre Oumra au départ de Dakar, il vous suffit de remplir le formulaire d'inscription en ligne sur saalimvoyage.com ou de contacter notre agence au +221 78 992 20 20. Saalim Voyages s'occupe de l'intégralité de vos démarches : visa Oumra, vols AIBD–Djeddah/Médine, hébergement proche du Haram, transferts et encadrement spirituel avec des imams sénégalais.",
+        },
+        {
+          q: "Quel est le prix d'un forfait Oumra au Sénégal ?",
+          a: "Nos formules débutent à partir de 2 950 € (environ 1 935 000 FCFA) pour la formule Économique, avec des options Confort et Premium selon la proximité des hôtels et les services inclus. Nous proposons des facilités de paiement échelonné et la Tontine Oumra sans aucun intérêt (riba).",
+        },
+        {
+          q: "Quelles sont les conditions de validité du passeport pour l'Oumra ?",
+          a: "Votre passeport doit obligatoirement être valide au moins 6 mois après votre date de retour prévue d'Arabie Saoudite. Notre équipe vérifie gratuitement la conformité de vos documents avant le dépôt du visa.",
+        },
+        {
+          q: "Comment fonctionne la Tontine Oumra (sans Riba) au Sénégal ?",
+          a: "La Tontine Oumra Saalim est une formule d'épargne solidaire mensuelle 100% halal. Elle permet d'étaler le coût de votre pèlerinage sur plusieurs mois en toute sérénité, sans frais d'intérêt, via Wave, Orange Money ou virement.",
+        },
+        {
+          q: "Quels moyens de paiement acceptez-vous au Sénégal et depuis la diaspora ?",
+          a: "Nous acceptons Wave (code marchand), Orange Money, les virements bancaires, les cartes bancaires ainsi que les paiements en espèces directement à nos agences de Dakar (Sacré-Cœur 3) et Kaolack (Médina Baye).",
+        },
+        {
+          q: "Combien de temps avant le départ dois-je m'inscrire ?",
+          a: "Nous recommandons de vous inscrire au moins 4 à 8 semaines avant la date de départ souhaitée afin de garantir l'obtention du visa, les meilleures places d'avion et les chambres d'hôtel les plus proches des Lieux Saints.",
+        },
       ],
     },
     register: {
@@ -387,19 +444,57 @@ export const translations = {
       admin: "Admin area",
     },
     hero: {
-      eyebrow: "Saalim Voyages — Licensed Umrah & Hajj agency",
-      title: "Experience a spiritual journey guided with trust, serenity, and care",
+      eyebrow: "Saalim Voyages — Certified Umrah & Hajj Agency in Senegal",
+      title: "Umrah Senegal : Experience your sacred journey in total peace of mind",
       subtitle:
-        "From Dakar, we guide pilgrims from Senegal, Africa, Europe, the USA and the world to the Holy Sites, with rigor, care and full compliance.",
+        "From Dakar and Kaolack, we guide pilgrims from Senegal and worldwide to Mecca and Medina with care, comfort and full Islamic compliance.",
       ctaPrimary: "Book my Umrah",
       ctaSecondary: "View calendar",
       rotating: [
-        { label: "Umrah package", anchor: "packages", cta: "View calendar", ctaAnchor: "planning" },
-        { label: "Hajj package", anchor: "packages", cta: "View calendar", ctaAnchor: "planning" },
-        { label: "Visa request", anchor: "services", cta: "Start my request", ctaAnchor: "register" },
-        { label: "Flight only", anchor: "services", cta: "Book my flight", ctaAnchor: "register" },
-        { label: "Halal Umrah Tontine (no riba)", anchor: "services", cta: "Join the tontine", ctaAnchor: "register" },
+        { label: "Umrah Senegal package", anchor: "packages", cta: "View packages", ctaAnchor: "planning" },
+        { label: "Hajj package Senegal", anchor: "packages", cta: "View calendar", ctaAnchor: "planning" },
+        { label: "Express Umrah visa", anchor: "services", cta: "Start request", ctaAnchor: "register" },
+        { label: "Dakar–Jeddah flight", anchor: "services", cta: "Book my flight", ctaAnchor: "register" },
+        { label: "Halal Umrah Tontine (no riba)", anchor: "services", cta: "Join tontine", ctaAnchor: "register" },
         { label: "Pay with Wave & Orange Money", anchor: "payment", cta: "How to pay", ctaAnchor: "payment" },
+      ],
+    },
+    oumraSenegal: {
+      tag: "Your Agency in Senegal",
+      title: "Umrah Senegal : Your Sacred Journey to Mecca from Dakar",
+      subtitle:
+        "Saalim Voyages is your premier agency in Senegal for organizing Umrah and Hajj with complete confidence and peace of mind.",
+      features: [
+        {
+          title: "Direct & assisted flights from Dakar (AIBD)",
+          desc: "Regular departures from Blaise Diagne International Airport (DSS) to Jeddah and Medina with full boarding and arrival assistance.",
+        },
+        {
+          title: "Selected hotels near the Haram",
+          desc: "Quality accommodations located within walking distance of the Kaaba (Masjid al-Haram) and the Prophet's Mosque (ﷺ).",
+        },
+        {
+          title: "Experienced Senegalese religious guides",
+          desc: "Continuous spiritual guidance in Wolof, French and Arabic to support you through every ritual and historic site visit (Ziyarat).",
+        },
+        {
+          title: "100% Halal Umrah Tontine without Riba",
+          desc: "An exclusive interest-free monthly savings plan enabling every pilgrim to finance their sacred trip without stress.",
+        },
+        {
+          title: "Express Umrah visa processing",
+          desc: "Full management of Saudi visa processing and mandatory health insurance for Senegalese pilgrims.",
+        },
+        {
+          title: "Local offices in Dakar & Kaolack",
+          desc: "Physical branch offices in Dakar (Sacré-Cœur 3) and Kaolack (Médina Baye) to advise you and handle all documentation.",
+        },
+      ],
+      stats: [
+        { value: "+2,500", label: "Pilgrims guided" },
+        { value: "100%", label: "Religious compliance" },
+        { value: "24/7", label: "On-site assistance" },
+        { value: "4.9/5", label: "Satisfaction rating" },
       ],
     },
     packages: {
@@ -631,13 +726,32 @@ export const translations = {
       placeholder: "Video coming soon",
     },
     faq: {
-      title: "Frequently asked questions",
+      title: "Frequently Asked Questions — Umrah Senegal",
       items: [
-        { q: "How long before departure should I register?", a: "We recommend at least 8 weeks before the departure date for visa and preparation." },
-        { q: "Does my passport need to be valid?", a: "Yes, it must be valid for at least 6 months after the return date. We verify this at registration." },
-        { q: "Can I pay in installments?", a: "Yes, through the Saalim Tontine or a personalized schedule, with no interest. See the Payment section." },
-        { q: "What payment methods do you accept?", a: "Wave and Orange Money (merchant codes), bank transfer and Saalim Tontine." },
-        { q: "Is the visa guaranteed?", a: "Visa issuance is decided by Saudi authorities. We guarantee a complete and compliant file, but cannot guarantee approval." },
+        {
+          q: "How to perform Umrah from Senegal with Saalim Voyages?",
+          a: "To embark on your Umrah from Dakar, simply fill out our online registration form at saalimvoyage.com or call our agency at +221 78 992 20 20. Saalim Voyages manages every step: Saudi visa, flights from Dakar (DSS) to Jeddah/Medina, hotel booking near the Haram, transfers and spiritual support with Senegalese guides.",
+        },
+        {
+          q: "What is the price of an Umrah package from Senegal?",
+          a: "Our packages start from €2,950 (approx. 1,935,000 XOF) for the Economy formula, with Comfort and Premium upgrades available. We also offer interest-free payment installments and our Halal Umrah Tontine (no riba).",
+        },
+        {
+          q: "What are the passport validity requirements for Umrah?",
+          a: "Your biometric passport must be valid for at least 6 months beyond your scheduled return date from Saudi Arabia. Our team checks your documents free of charge before submitting the visa request.",
+        },
+        {
+          q: "How does the interest-free Umrah Tontine work in Senegal?",
+          a: "The Saalim Umrah Tontine is a 100% Halal monthly savings formula with zero interest and zero hidden fees. It allows pilgrims in Senegal to save monthly through Wave, Orange Money or bank transfer to fund their trip with peace of mind.",
+        },
+        {
+          q: "What payment methods are accepted in Senegal and abroad?",
+          a: "We accept Wave (merchant code), Orange Money, bank transfers, credit cards and cash at our branch offices in Dakar (Sacré-Cœur 3) and Kaolack (Médina Baye).",
+        },
+        {
+          q: "How far in advance should I register?",
+          a: "We strongly recommend registering at least 4 to 8 weeks before your intended departure date to secure visa issuance, flight seats and hotels closest to the Holy Harams.",
+        },
       ],
     },
     register: {

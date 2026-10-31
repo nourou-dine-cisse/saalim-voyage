@@ -1,0 +1,21 @@
+{
+  "name": "Saalim Voyages — Oumra Sénégal & Hajj",
+  "short_name": "Saalim Voyages",
+  "description": "Agence de voyages agréée au Sénégal spécialisée dans l'Oumra et le Hajj depuis Dakar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1b17",
+  "theme_color": "#d4af37",
+  "icons": [
+    {
+      "src": "/logo.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

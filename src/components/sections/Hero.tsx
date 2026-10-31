@@ -13,7 +13,7 @@ export function Hero() {
       <div className="absolute inset-0">
         <img
           src={heroImg}
-          alt="Vue de la Kaaba à La Mecque"
+          alt="Oumra Sénégal — Pèlerinage à La Mecque avec l'agence Saalim Voyages Dakar"
           className="w-full h-full object-cover scale-105"
           width={1920}
           height={1080}

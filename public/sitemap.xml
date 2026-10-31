@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://saalimvoyage.com/</loc>
+    <lastmod>2026-10-31</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://saalimvoyage.com/" />
+    <xhtml:link rel="alternate" hreflang="fr-SN" href="https://saalimvoyage.com/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://saalimvoyage.com/" />
+    <image:image>
+      <image:loc>https://saalimvoyage.com/og-image.jpg</image:loc>
+      <image:title>Oumra Sénégal - Agence Saalim Voyages</image:title>
+      <image:caption>Pèlerinage Oumra et Hajj depuis Dakar, Sénégal</image:caption>
+    </image:image>
+  </url>
+</urlset>

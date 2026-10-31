@@ -1,0 +1,10 @@
+# Robots.txt for saalimvoyage.com
+# Optimisé pour le référencement Google (SEO Oumra Sénégal)
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# Sitemap XML principal
+Sitemap: https://saalimvoyage.com/sitemap.xml

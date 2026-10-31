@@ -82,14 +82,6 @@ function AdminInner() {
   return <Dashboard onSignOut={signOut} />;
 }
 
-function CenterMsg({ msg }: { msg: string }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <p className="text-foreground text-center">{msg}</p>
-    </div>
-  );
-}
-
 function Login({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useLang();
   const [email, setEmail] = useState("");
